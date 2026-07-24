@@ -82,6 +82,35 @@ the newest templates.
 3. Run `cargo test`. Module discovery is data-driven, so no Rust changes are
    needed to make the new stack selectable.
 
+## Skills: quickstarter-dev vs produced repos
+
+There are two conceptually distinct skill sets, even though only the first
+exists today:
+
+- **Quickstarter-dev skills** live in this repo (`.agents/skills`, tracked via
+  `skills-lock.json`) so engineers working on the scaffolder share the same
+  tooling. This set includes **all Rust-related skills**, because the CLI is
+  written in Rust: `rust-skills`, `coding-guidelines` (Rust code style, despite
+  the generic name), and the `rust-*` tools (`rust-call-graph`,
+  `rust-code-navigator`, `rust-daily`, `rust-deps-visualizer`, `rust-learner`,
+  `rust-refactor-helper`, `rust-router`, `rust-symbol-analyzer`,
+  `rust-trait-explorer`).
+
+- **Produced-repo skills** are the curated set a *generated* project should
+  receive. Installing them into generated projects is **not implemented yet**
+  (the templates install no skills today), but the split itself is already
+  deterministic.
+
+The authoritative, machine-readable split lives in
+[`skills-manifest.json`](../skills-manifest.json) at the repo root. It has two
+buckets, `quickstarterDev` and `produced`, and every installed skill must
+appear in exactly one. `cli/tests/skills_manifest_test.rs` enforces this: the
+build fails if a skill is added or removed without updating the manifest, if a
+skill is in both buckets, if the manifest names a skill that is not installed,
+or if any Rust-related skill (the `rust-*` tools or `coding-guidelines`) leaks
+into the `produced` bucket. When the produced-repo install is built, it reads
+the `produced` list and resolves each skill's source from `skills-lock.json`.
+
 ## Adding a new axis (future)
 
 Today there is a single axis (the stack). A second axis (for example a data

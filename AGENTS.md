@@ -27,6 +27,24 @@ behavior. In short, a project is composed with three techniques:
   `{{TOKEN}}` in the base file and give it a value in each module's
   `module.json`.
 
+## Skills
+
+Whenever you install a new skill in this repo (`skills add ...`), you MUST, in
+the same change, classify it in [`skills-manifest.json`](skills-manifest.json)
+by deciding where it belongs:
+
+- **`quickstarterDev`** - only useful for developing the quickstarter CLI (for
+  example anything Rust-related). Never installed into generated projects.
+- **`produced`** - should be installed into every generated project.
+- **both** - list the skill in *both* arrays when it applies to developing
+  quickstarter and to generated projects.
+
+Every installed skill must appear in at least one bucket. `cli/tests/skills_manifest_test.rs`
+fails the build if a skill is installed but unclassified, if the manifest names
+a skill that is not installed, or if any Rust-related skill (`rust-*` or
+`coding-guidelines`) is placed in `produced`. Removing a skill means removing it
+from the manifest in the same change.
+
 ## Rust conventions
 
 - One module per file; keep files small (~400 lines of production code is the
