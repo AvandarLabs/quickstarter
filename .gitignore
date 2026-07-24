@@ -1,0 +1,14 @@
+# Rust build output
+/cli/target
+
+# OS / editor
+.DS_Store
+*.swp
+.idea
+
+# Node artifacts (from any local template experiments)
+node_modules
+dist
+
+# Difit session comments
+.difit/

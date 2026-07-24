@@ -1,0 +1,24 @@
+[package]
+name = "quickstarter"
+version = "0.1.0"
+edition = "2024"
+description = "Interactive scaffolder that builds a new front-end project from composable template layers."
+license = "CPAL-1.0"
+
+[[bin]]
+name = "quickstarter"
+path = "src/main.rs"
+
+[lib]
+name = "quickstarter"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+dialoguer = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"

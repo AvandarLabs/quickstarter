@@ -1,0 +1,21 @@
+{
+  "printWidth": 80,
+  "semi": true,
+  "tabWidth": 2,
+  "importOrder": [
+    "<BUILTIN_MODULES>",
+    "<THIRD_PARTY_MODULES>",
+    "^@/(.*)$",
+    "^[.]",
+    "<TYPES>"
+  ],
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    ".agents/**",
+    ".cursor/**",
+    ".tanstack/**",
+    "dist/**",
+    "node_modules/**",
+    "src/routeTree.gen.ts"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "key": "start",
+  "name": "TanStack Start (SSR + server functions)",
+  "description": "Vite + TanStack Start. Server-side rendering and server functions.",
+  "order": 2,
+  "tokens": {
+    "STACK_SUMMARY": "- This project is a server-rendered React application built with TypeScript,\n  React, and Mantine.\n- Routing and the server runtime are handled by **TanStack Start**\n  (`@tanstack/react-start`) on top of TanStack Router\n  (`@tanstack/react-router`). Server-side rendering and server functions\n  (`createServerFn`) are available. The HTML document is defined in\n  `src/routes/__root.tsx`; there is no `index.html`.",
+    "STACK_DESCRIPTION": "A server-rendered React application built with Vite, React, Mantine, and\nTanStack Start. It supports server-side rendering (SSR) and server functions\n(`createServerFn`). We do **not** use TailwindCSS.",
+    "STACK_LINE": "[TanStack Start](https://tanstack.com/start) v1 (file-based, SSR)",
+    "ROUTING_NOTES": "Routes are file-based. Add a file under `src/routes/` and TanStack Start\nregenerates `src/routeTree.gen.ts` automatically. Never edit\n`routeTree.gen.ts` (or any `*.gen.*` file) by hand. The root HTML document\nlives in `src/routes/__root.tsx`.",
+    "DEV_URL": "http://localhost:3000"
+  }
+}

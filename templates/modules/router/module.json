@@ -1,0 +1,13 @@
+{
+  "key": "router",
+  "name": "TanStack Router (SPA)",
+  "description": "Vite + TanStack Router. Client-side single-page app, no server.",
+  "order": 1,
+  "tokens": {
+    "STACK_SUMMARY": "- This project is a single-page application (SPA) built with TypeScript, React,\n  and Mantine.\n- Routing is handled by **TanStack Router** (`@tanstack/react-router`). We do\n  **not** use TanStack Start. There is no server-side rendering, no server\n  functions, and no server entry point. Everything runs client-side.",
+    "STACK_DESCRIPTION": "A client-side single-page application (SPA) built with Vite, React, Mantine,\nand TanStack Router. There is no server-side rendering and no server entry\npoint: everything runs in the browser. We do **not** use TailwindCSS.",
+    "STACK_LINE": "[TanStack Router](https://tanstack.com/router) v1 (file-based)",
+    "ROUTING_NOTES": "Routes are file-based. Add a file under `src/routes/` and the TanStack Router\nVite plugin regenerates `src/routeTree.gen.ts` automatically. Never edit\n`routeTree.gen.ts` (or any `*.gen.*` file) by hand.",
+    "DEV_URL": "http://localhost:5173"
+  }
+}
