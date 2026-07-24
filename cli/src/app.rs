@@ -7,6 +7,7 @@ use anyhow::{Context, Result, bail};
 use crate::catalog;
 use crate::cli::prompts;
 use crate::compose::{self, ComposePlan};
+use crate::git_init;
 use crate::template::{self, ensure_git_available};
 
 /// Parsed invocation options.
@@ -55,6 +56,17 @@ pub fn run(args: Args) -> Result<()> {
         // Do not leave a half-built directory behind.
         std::fs::remove_dir_all(&dest).ok();
     })?;
+
+    // Best-effort: a git failure (for example, git not being fully configured)
+    // must not discard the project the user just successfully created.
+    if let Err(error) = git_init::init_and_commit(&dest) {
+        eprintln!(
+            "Warning: could not initialize a git repository in {}: {error:#}\n\
+             The project was created successfully; run `git init` yourself to add \
+             version control.",
+            dest.display()
+        );
+    }
 
     report_success(&project_name, &dest, module);
     Ok(())

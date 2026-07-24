@@ -64,7 +64,12 @@ The binary is a thin client (`cli/src/app.rs`):
    Clone failures are classified as offline, access/config, or generic.
 4. Discover modules from the clone (`catalog/mod.rs`) and prompt for the stack.
 5. Compose into the target directory; on error, remove the partial output.
-6. Print next steps. The temp clone is deleted when the run ends, so the user
+6. Initialize the target as a git repository with a single initial commit
+   (`git_init.rs`). This is best-effort: if git init or the commit fails (for
+   example, no configured identity), the run prints a warning and keeps the
+   project rather than discarding it. A generic fallback identity is used for
+   the commit only when the user has none configured.
+7. Print next steps. The temp clone is deleted when the run ends, so the user
    only ever sees the finished project.
 
 Because the templates are fetched at runtime, an old binary still builds from
