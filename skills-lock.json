@@ -115,6 +115,12 @@
       "skillPath": "skills/receiving-code-review/SKILL.md",
       "computedHash": "3f56080356c62e4f74a183d7371686babc661e41a952dc67a97c2c76fe8a9329"
     },
+    "repo-product-manager": {
+      "source": "jpsyx/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/repo-product-manager/SKILL.md",
+      "computedHash": "e5e395fd12c708f1894b5b130bce06419809a1fff39192a3db3a96335ab3911f"
+    },
     "requesting-code-review": {
       "source": "obra/superpowers",
       "sourceType": "github",
