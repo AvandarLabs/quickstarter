@@ -10,5 +10,5 @@
 node_modules
 dist
 
-# Difit session comments
-.difit/
+# Diff duet session files
+.diff-duet
