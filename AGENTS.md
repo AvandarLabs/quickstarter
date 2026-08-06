@@ -48,8 +48,13 @@ from the manifest in the same change.
 ## Rust conventions
 
 - One module per file; keep files small (~400 lines of production code is the
-  smell threshold). Model parent/child relationships through the directory
-  tree, mirroring the code's ownership.
+  smell threshold). Inline tests do not count toward the production threshold,
+  but they remain subject to modularity review. Model parent/child
+  relationships through the directory tree, mirroring the code's ownership.
+- Apply the same modularity standard to unit tests, test-only modules,
+  integration tests, test support, harnesses, and fixtures. Split large or
+  multi-responsibility suites by behavior or subsystem, and compose fixtures
+  from focused helpers instead of building monolithic test infrastructure.
 - Use `anyhow` with `.context(...)` for error messages the user will read.
 - Document exported items with `///` doc comments.
 - Do not use em dashes in comments or output. Prefer a colon or a hyphen.
