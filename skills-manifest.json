@@ -9,7 +9,10 @@
     "",
     "quickstarterDev: useful when developing the quickstarter CLI. Includes ALL",
     "  Rust-related skills, because the CLI is written in Rust and Rust is",
-    "  irrelevant to the produced TypeScript/React apps.",
+    "  irrelevant to the produced TypeScript/React apps. Rust toolchain skills",
+    "  without a rust- prefix (cargo-workflows, fuzzing) belong here too; the",
+    "  test's rust-*/coding-guidelines guard cannot catch those, so keep them",
+    "  out of produced by hand.",
     "",
     "produced: installed into every generated project. Sources for each are",
     "  resolved from skills-lock.json when the produced-repo skill install runs.",
@@ -17,7 +20,9 @@
     "both: to mark a skill as both, add its name to quickstarterDev AND produced."
   ],
   "quickstarterDev": [
+    "cargo-workflows",
     "coding-guidelines",
+    "fuzzing",
     "rust-call-graph",
     "rust-code-navigator",
     "rust-daily",
@@ -25,9 +30,12 @@
     "rust-learner",
     "rust-refactor-helper",
     "rust-router",
+    "rust-sanitizers-miri",
+    "rust-security",
     "rust-skills",
     "rust-symbol-analyzer",
-    "rust-trait-explorer"
+    "rust-trait-explorer",
+    "rust-unsafe"
   ],
   "produced": [
     "ava-model-creation",

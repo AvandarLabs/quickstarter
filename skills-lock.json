@@ -19,6 +19,12 @@
       "skillPath": "skills/brainstorming/SKILL.md",
       "computedHash": "253570c46990ea018dd4520dba80cd77c35f9e5a8654057da1812face7be30cd"
     },
+    "cargo-workflows": {
+      "source": "mohitmishra786/low-level-dev-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust/cargo-workflows/SKILL.md",
+      "computedHash": "14a5bc62c6206505c027201b5c075916a0987ca528428ecb6f2d7f10272b4685"
+    },
     "coding-guidelines": {
       "source": "actionbook/rust-skills",
       "sourceType": "github",
@@ -48,6 +54,12 @@
       "sourceType": "github",
       "skillPath": "skills/finishing-a-development-branch/SKILL.md",
       "computedHash": "aa2632ed96df59c36348bd8f8ec1ff0fb0c5cc68b60691834687bf4cedc6be3f"
+    },
+    "fuzzing": {
+      "source": "mohitmishra786/low-level-dev-skills",
+      "sourceType": "github",
+      "skillPath": "skills/runtimes/fuzzing/SKILL.md",
+      "computedHash": "673ebaeb4a9dd79a15eda8db47f1daa25d6ec218dcc740f3ea785ab512424779"
     },
     "impeccable": {
       "source": "pbakaus/impeccable",
@@ -139,6 +151,18 @@
       "skillPath": "skills/rust-router/SKILL.md",
       "computedHash": "787e5244b55d9d943abc49a81318bde7d1bbf88dd43bc60dc58ec74023ba3788"
     },
+    "rust-sanitizers-miri": {
+      "source": "mohitmishra786/low-level-dev-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust/rust-sanitizers-miri/SKILL.md",
+      "computedHash": "40dd6e8743eb7cab2c02f70c9019967856975efd273700f31f0ace6fc2740ccb"
+    },
+    "rust-security": {
+      "source": "mohitmishra786/low-level-dev-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust/rust-security/SKILL.md",
+      "computedHash": "3c3763fbb2da225b1286304e42bae6d95201e1a1fdc15d7550eee5ab337394f6"
+    },
     "rust-skills": {
       "source": "leonardomso/rust-skills",
       "sourceType": "github",
@@ -156,6 +180,12 @@
       "sourceType": "github",
       "skillPath": "skills/rust-trait-explorer/SKILL.md",
       "computedHash": "2feac2b9bb17689a7227fcae62c8a20351bb5afb271a47d49c27ba87ba9e7e26"
+    },
+    "rust-unsafe": {
+      "source": "mohitmishra786/low-level-dev-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust/rust-unsafe/SKILL.md",
+      "computedHash": "0f98528d2805553c7264c19c006b582cf2bccfc501932feabbde284fed5a412c"
     },
     "subagent-driven-development": {
       "source": "obra/superpowers",
