@@ -13,6 +13,14 @@ use anyhow::{Context, Result, bail};
 /// Message for the commit that captures the scaffolded files.
 const INITIAL_COMMIT_MESSAGE: &str = "Initial commit from quickstarter";
 
+/// Branch the new repository starts on.
+///
+/// Named explicitly rather than left to `git init`: git falls back to `master`
+/// on any machine that has not set `init.defaultBranch`, so without this the
+/// branch a generated project lands on depends on whose laptop ran the
+/// scaffolder.
+const DEFAULT_BRANCH_NAME: &str = "main";
+
 /// Initializes `dest` as a git repository and creates an initial commit
 /// containing every scaffolded file.
 ///
@@ -20,7 +28,8 @@ const INITIAL_COMMIT_MESSAGE: &str = "Initial commit from quickstarter";
 /// to a generic identity so the commit still succeeds on a machine that has no
 /// global `user.name` / `user.email` set.
 pub fn init_and_commit(dest: &Path) -> Result<()> {
-    run_git(dest, &["init", "-q"]).context("initializing a git repository")?;
+    run_git(dest, &["init", "-q", "-b", DEFAULT_BRANCH_NAME])
+        .context("initializing a git repository")?;
     run_git(dest, &["add", "-A"]).context("staging the scaffolded files")?;
     commit_all(dest).context("creating the initial commit")?;
     Ok(())
@@ -105,5 +114,24 @@ mod tests {
             .output()
             .unwrap();
         assert!(String::from_utf8_lossy(&status.stdout).trim().is_empty());
+    }
+
+    #[test]
+    fn starts_the_repository_on_the_default_branch() {
+        let dest = tempfile::tempdir().unwrap();
+        std::fs::write(dest.path().join("file.txt"), "hi").unwrap();
+
+        init_and_commit(dest.path()).unwrap();
+
+        // Naming the branch explicitly is what makes this independent of the
+        // machine: without it, git falls back to `master` on any machine that
+        // has not set `init.defaultBranch`.
+        let branch = Command::new("git")
+            .args(["branch", "--show-current"])
+            .current_dir(dest.path())
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&branch.stdout).trim(), DEFAULT_BRANCH_NAME);
+        assert_eq!(DEFAULT_BRANCH_NAME, "main");
     }
 }
