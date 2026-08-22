@@ -5,15 +5,26 @@ import {
 } from "../../skillCommands/skillCommands";
 import type { CommandSpec, SkillSourceGroup } from "../../skills.types";
 
-/** What an update run will do, worked out before anything is executed. */
-export type SkillsUpdatePlan = {
+/**
+ * Whether to bring the project up to the lock, or up to the latest.
+ *
+ * - `install` touches only what is absent, mirroring `pnpm install`: an
+ *   already-installed skill is left exactly as it is.
+ * - `update` refreshes everything, mirroring an explicit dependency update.
+ */
+export type SkillsSyncMode = "install" | "update";
+
+/** What a sync will do, worked out before anything is executed. */
+export type SkillsSyncPlan = {
   commands: CommandSpec[];
 
   /** Locked skills that are not on disk, whatever the mode. */
   missingSkillNames: string[];
 };
 
-type CreateSkillsUpdatePlanOptions = {
+type CreateSkillsSyncPlanOptions = {
+  mode: SkillsSyncMode;
+
   /** The locked skills, grouped by the repository they come from. */
   sourceGroups: readonly SkillSourceGroup[];
 
@@ -21,27 +32,21 @@ type CreateSkillsUpdatePlanOptions = {
   installedSkillNames: readonly string[];
 
   isImpeccableInstalled: boolean;
-
-  /**
-   * Restore what is absent and nothing more. This is the `postinstall` mode:
-   * it costs no network at all once a project is complete, so adding a
-   * dependency does not re-fetch every skill repository.
-   */
-  onlyMissing?: boolean;
 };
 
 function _createSkillsCommands(
-  options: Readonly<CreateSkillsUpdatePlanOptions>,
+  options: Readonly<CreateSkillsSyncPlanOptions>,
 ): CommandSpec[] {
-  const { sourceGroups, installedSkillNames, onlyMissing = false } = options;
+  const { mode, sourceGroups, installedSkillNames } = options;
   const installedNames = new Set(installedSkillNames);
 
   return sourceGroups.flatMap((group) => {
-    const wantedNames = onlyMissing
-      ? group.skillNames.filter((skillName) => {
-          return !installedNames.has(skillName);
-        })
-      : group.skillNames;
+    const wantedNames =
+      mode === "update"
+        ? group.skillNames
+        : group.skillNames.filter((skillName) => {
+            return !installedNames.has(skillName);
+          });
 
     if (wantedNames.length === 0) {
       return [];
@@ -51,17 +56,17 @@ function _createSkillsCommands(
 }
 
 function _createImpeccableCommands(
-  options: Readonly<CreateSkillsUpdatePlanOptions>,
+  options: Readonly<CreateSkillsSyncPlanOptions>,
 ): CommandSpec[] {
-  const { isImpeccableInstalled, onlyMissing = false } = options;
+  const { mode, isImpeccableInstalled } = options;
   if (!isImpeccableInstalled) {
     return [createImpeccableInstallCommand()];
   }
-  return onlyMissing ? [] : [createImpeccableUpdateCommand()];
+  return mode === "update" ? [createImpeccableUpdateCommand()] : [];
 }
 
 function _findMissingSkillNames(
-  options: Readonly<CreateSkillsUpdatePlanOptions>,
+  options: Readonly<CreateSkillsSyncPlanOptions>,
 ): string[] {
   const installedNames = new Set(options.installedSkillNames);
   return options.sourceGroups
@@ -77,21 +82,20 @@ function _findMissingSkillNames(
 }
 
 /**
- * Works out which commands an update needs to run.
+ * Works out which commands a sync needs to run.
  *
- * Keeping this decision separate from running it is what makes the two modes
- * testable without touching the network: a full update refreshes every locked
- * source and impeccable, while `onlyMissing` restores just what is absent.
+ * Keeping the decision separate from running it is what makes both modes
+ * testable without touching the network.
  *
+ * @param options.mode Install what is missing, or update everything.
  * @param options.sourceGroups Locked skills grouped by source repository.
  * @param options.installedSkillNames Skills currently on disk.
  * @param options.isImpeccableInstalled Whether impeccable is on disk.
- * @param options.onlyMissing Restore absent skills only.
  * @returns The commands to run and the locked skills that are missing.
  */
-export function createSkillsUpdatePlan(
-  options: Readonly<CreateSkillsUpdatePlanOptions>,
-): SkillsUpdatePlan {
+export function createSkillsSyncPlan(
+  options: Readonly<CreateSkillsSyncPlanOptions>,
+): SkillsSyncPlan {
   return {
     commands: [
       ..._createSkillsCommands(options),

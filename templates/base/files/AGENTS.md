@@ -129,9 +129,10 @@ When in doubt, write the test.
 - **Never create or edit anything under `.agents/`, `.claude/skills/`,
   `.cursor/skills/`, or `.opencode/`.** Those directories are generated, and
   they are gitignored: `skills-lock.json` is the only skills file in git.
-- `pnpm install` restores any locked skill that is missing, so a fresh clone
-  needs no extra step. `pnpm skills` lists what is installed and
-  `pnpm skills:update` refreshes everything.
+- `pnpm install` installs any locked skill that is missing, so a fresh clone
+  needs no extra step. `pnpm skills` lists what is installed,
+  `pnpm skills:install` is the same step run on demand, and
+  `pnpm skills:update` upgrades everything to the latest.
 - To add or remove a skill, use `npx skills add` / `npx skills remove` and
   commit the resulting `skills-lock.json` change in the same commit.
 - The wrapper lives in `scripts/skills`. See [`docs/skills.md`](docs/skills.md)

@@ -9,19 +9,15 @@ import { IMPECCABLE_SKILL_NAME, SKIP_SKILLS_ENV_VAR_NAMES } from "../constants";
 import { readInstalledSkillNamesFromDisk } from "../installedSkills/readInstalledSkills";
 import { runCommand } from "../runCommand/runCommand";
 import { readSkillSourceGroups } from "../skillsLock/readSkillsLock";
-import { createSkillsUpdatePlan } from "./createSkillsUpdatePlan/createSkillsUpdatePlan";
+import { createSkillsSyncPlan } from "./createSkillsSyncPlan/createSkillsSyncPlan";
 import type { CommandRunner, CommandSpec } from "../skills.types";
+import type { SkillsSyncMode } from "./createSkillsSyncPlan/createSkillsSyncPlan";
 
-type UpdateSkillsOptions = {
+/** Options shared by both sync verbs. */
+export type SkillsSyncOptions = {
   /**
-   * Restore absent skills and nothing else. This is what `postinstall` uses,
-   * so a complete project costs no network when a dependency is added.
-   */
-  onlyMissing?: boolean;
-
-  /**
-   * Postinstall mode: stay quiet unless something needs saying, and never
-   * fail the surrounding `pnpm install`.
+   * Postinstall mode: stay quiet unless something needs saying, and let the
+   * environment turn the run off entirely.
    */
   quiet?: boolean;
 
@@ -30,8 +26,8 @@ type UpdateSkillsOptions = {
   environment?: Record<string, string | undefined>;
 };
 
-/** What an update actually did. */
-export type UpdateSkillsResult = {
+/** What a sync actually did. */
+export type SkillsSyncResult = {
   /** True when at least one command ran. */
   didRun: boolean;
 
@@ -42,6 +38,14 @@ export type UpdateSkillsResult = {
   failedLabels: string[];
 };
 
+/** Number of trailing output lines to show for a command that failed. */
+const FAILURE_DETAIL_LINE_COUNT = 5;
+
+const HEADINGS: Record<SkillsSyncMode, string> = {
+  install: "Installing agent skills",
+  update: "Updating agent skills",
+};
+
 function _findSkipReason(
   environment: Readonly<Record<string, string | undefined>>,
 ): string | undefined {
@@ -50,9 +54,6 @@ function _findSkipReason(
     return value !== undefined && value !== "" && value !== "false";
   });
 }
-
-/** Number of trailing output lines to show for a command that failed. */
-const FAILURE_DETAIL_LINE_COUNT = 5;
 
 /**
  * Runs the planned commands one at a time, collecting the labels that failed.
@@ -92,33 +93,24 @@ function _runCommands(
 }
 
 /**
- * Installs or refreshes this project's agent skills.
+ * Brings this project's agent skills in line with `skills-lock.json`.
  *
- * Both managers are driven here: `npx skills` for everything in
- * `skills-lock.json`, and `npx impeccable` for the skill that installs
- * itself. Nothing is symlinked by hand, because each tool owns the layout it
- * expects.
- *
- * @param options.onlyMissing Restore absent skills only.
- * @param options.quiet Postinstall mode: minimal output, never fails.
- * @param options.runner Command runner, overridden in tests.
- * @param options.projectRootPath Directory holding `skills-lock.json`.
- * @param options.environment Environment to read the skip flags from.
- * @returns What ran, what was skipped, and what failed.
+ * Both managers are driven here: `npx skills` for everything in the lock, and
+ * `npx impeccable` for the skill that installs itself. Nothing is symlinked by
+ * hand, because each tool owns the layout it expects.
  */
-export async function updateSkills(
-  options: Readonly<UpdateSkillsOptions> = {},
-): Promise<UpdateSkillsResult> {
+async function _syncSkills(
+  mode: SkillsSyncMode,
+  options: Readonly<SkillsSyncOptions>,
+): Promise<SkillsSyncResult> {
   const {
-    onlyMissing = false,
     quiet = false,
     runner = runCommand,
     projectRootPath = process.cwd(),
     environment = process.env,
   } = options;
 
-  const skipReason = quiet ? _findSkipReason(environment) : undefined;
-  if (skipReason !== undefined) {
+  if (quiet && _findSkipReason(environment) !== undefined) {
     return { didRun: false, wasSkipped: true, failedLabels: [] };
   }
 
@@ -127,11 +119,11 @@ export async function updateSkills(
     readInstalledSkillNamesFromDisk({ projectRootPath }),
   ]);
 
-  const plan = createSkillsUpdatePlan({
+  const plan = createSkillsSyncPlan({
+    mode,
     sourceGroups,
     installedSkillNames,
     isImpeccableInstalled: installedSkillNames.includes(IMPECCABLE_SKILL_NAME),
-    onlyMissing,
   });
 
   if (plan.commands.length === 0) {
@@ -143,13 +135,11 @@ export async function updateSkills(
 
   if (quiet) {
     printInfo(
-      `Restoring agent skills (${plan.commands.length} command(s)). ` +
+      `Installing agent skills (${plan.commands.length} command(s)). ` +
         "Set SKIP_SKILLS_INSTALL=1 to turn this off.",
     );
   } else {
-    printHeading(
-      onlyMissing ? "Restoring agent skills" : "Updating agent skills",
-    );
+    printHeading(HEADINGS[mode]);
   }
 
   const failedLabels = await _runCommands(plan.commands, { runner, quiet });
@@ -163,4 +153,43 @@ export async function updateSkills(
   }
 
   return { didRun: true, wasSkipped: false, failedLabels };
+}
+
+/**
+ * Installs the locked skills that are not on disk, and leaves the rest alone.
+ *
+ * This is what `pnpm install` runs, and it deliberately behaves the way
+ * `pnpm install` does for packages: it makes the working tree match the lock
+ * without upgrading anything already installed. A complete project makes no
+ * network calls at all.
+ *
+ * @param options.quiet Postinstall mode: minimal output, never fails.
+ * @param options.runner Command runner, overridden in tests.
+ * @param options.projectRootPath Directory holding `skills-lock.json`.
+ * @param options.environment Environment to read the skip flags from.
+ * @returns What ran, what was skipped, and what failed.
+ */
+export function installSkills(
+  options: Readonly<SkillsSyncOptions> = {},
+): Promise<SkillsSyncResult> {
+  return _syncSkills("install", options);
+}
+
+/**
+ * Updates every skill to the latest version its source offers.
+ *
+ * Unlike {@link installSkills} this always reaches the network: it is the
+ * deliberate "go get the newest" step, so it re-fetches each locked source and
+ * refreshes impeccable even when nothing is missing.
+ *
+ * @param options.quiet Minimal output, never fails.
+ * @param options.runner Command runner, overridden in tests.
+ * @param options.projectRootPath Directory holding `skills-lock.json`.
+ * @param options.environment Environment to read the skip flags from.
+ * @returns What ran, what was skipped, and what failed.
+ */
+export function updateSkills(
+  options: Readonly<SkillsSyncOptions> = {},
+): Promise<SkillsSyncResult> {
+  return _syncSkills("update", options);
 }

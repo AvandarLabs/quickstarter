@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build && tsc -b",
     "preview": "vite preview",
     "type-check": "tsc -b --noEmit",
     "lint": "oxlint .",
@@ -18,9 +18,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "skills": "tsx scripts/skills/SkillsCli.ts",
+    "skills:install": "tsx scripts/skills/SkillsCli.ts install",
     "skills:update": "tsx scripts/skills/SkillsCli.ts update",
-    "postinstall": "tsx scripts/skills/SkillsCli.ts update --only-missing --quiet",
-    "check": "pnpm format:check && pnpm lint && pnpm type-check && pnpm test && pnpm build"
+    "postinstall": "tsx scripts/skills/SkillsCli.ts install --quiet",
+    "check": "pnpm format:check && pnpm lint && pnpm build && pnpm test"
   },
   "dependencies": {
     "@mantine/core": "^9.4.1",

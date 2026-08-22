@@ -19,10 +19,11 @@ Skills come from two tools that know nothing about each other:
 `scripts/skills/SkillsCli.ts` wraps both so there is one place to ask what is
 installed and one place to bring it up to date:
 
-| Command              | What it does                                                  |
-| -------------------- | ------------------------------------------------------------- |
-| `pnpm skills`        | Merged listing of every skill, flagging any that are missing. |
-| `pnpm skills:update` | Refresh every locked source plus impeccable to their latest.  |
+| Command               | What it does                                                  |
+| --------------------- | ------------------------------------------------------------- |
+| `pnpm skills`         | Merged listing of every skill, flagging any that are missing. |
+| `pnpm skills:install` | Install the locked skills that are not on disk yet.           |
+| `pnpm skills:update`  | Update every installed skill to its latest version.           |
 
 Never create the per-frontend symlinks or copies by hand. Each manager owns the
 layout its own frontends expect, and hand-made links drift the moment either
@@ -38,11 +39,12 @@ impeccable's four copies of itself.
 The lock is therefore the manifest of what this project wants, and
 `pnpm install` is what makes the working tree match it:
 
-- `postinstall` runs `SkillsCli update --only-missing`, which installs whatever
-  the lock asks for that is not already on disk. A complete project makes no
-  network calls at all, so adding a dependency stays fast.
-- The analogy is a package lockfile: `pnpm install` materializes what is
-  locked, and `pnpm skills:update` is the deliberate "go get the latest" step.
+- `postinstall` runs `SkillsCli install`, which adds whatever the lock asks for
+  that is not already on disk and leaves everything else untouched. A complete
+  project makes no network calls at all, so adding a dependency stays fast.
+- Install and update are separate for the same reason pnpm keeps them separate:
+  `pnpm install` materializes what is locked without upgrading anything, and
+  `pnpm skills:update` is the deliberate "go get the latest" step.
 - `CI=true` or `SKIP_SKILLS_INSTALL=1` turns the restore off. No agent frontend
   runs in CI, so the network cost there buys nothing.
 

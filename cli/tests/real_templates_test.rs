@@ -147,18 +147,17 @@ fn every_stack_gets_the_skills_tooling() {
         serde_json::from_str(&std::fs::read_to_string(dest.join("package.json")).unwrap()).unwrap();
     let scripts = &manifest["scripts"];
 
-    // `pnpm install` is what restores the skills, so the wiring that makes
+    // `pnpm install` is what installs the skills, so the wiring that makes
     // that happen has to survive composition.
     assert_eq!(scripts["skills"], "tsx scripts/skills/SkillsCli.ts");
+    assert_eq!(scripts["skills:install"], "tsx scripts/skills/SkillsCli.ts install");
     assert_eq!(scripts["skills:update"], "tsx scripts/skills/SkillsCli.ts update");
-    assert!(
-        scripts["postinstall"]
-            .as_str()
-            .unwrap()
-            .contains("--only-missing"),
-        "postinstall must restore only what is missing: {}",
-        scripts["postinstall"]
-    );
+
+    // `postinstall` must install, never update: `pnpm install` does not
+    // upgrade an installed package and must not upgrade an installed skill.
+    let postinstall = scripts["postinstall"].as_str().unwrap();
+    assert!(postinstall.contains("install"), "{postinstall}");
+    assert!(!postinstall.contains("update"), "{postinstall}");
     assert_eq!(scripts["test"], "vitest run");
     assert!(manifest["devDependencies"]["@avandar/acclimate"].is_string());
     assert!(manifest["devDependencies"]["tsx"].is_string());
@@ -176,4 +175,33 @@ fn every_stack_gets_the_skills_tooling() {
         .filter(|line| !line.trim_start().starts_with('#'))
         .any(|line| line.contains("skills-lock.json"));
     assert!(!is_lock_ignored, "skills-lock.json must stay tracked");
+}
+
+#[test]
+fn every_stack_builds_before_it_type_checks() {
+    for stack in ["router", "start"] {
+        let temp = tempfile::tempdir().unwrap();
+        let dest = temp.path().join("app");
+        compose_stack(stack, &dest);
+
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(dest.join("package.json")).unwrap())
+                .unwrap();
+        let build = manifest["scripts"]["build"].as_str().unwrap();
+
+        // Both stacks generate `src/routeTree.gen.ts` from their Vite plugin,
+        // and every entry point imports it. Running `tsc` first means a freshly
+        // scaffolded project cannot type-check or build at all.
+        let vite_position = build.find("vite build").expect("build must run vite");
+        let tsc_position = build.find("tsc").expect("build must run tsc");
+        assert!(
+            vite_position < tsc_position,
+            "{stack}: vite build must precede tsc: {build}"
+        );
+
+        // `check` gets its type-checking from `build` for the same reason.
+        let check = manifest["scripts"]["check"].as_str().unwrap();
+        assert!(check.contains("pnpm build"), "{stack}: {check}");
+        assert!(!check.contains("type-check"), "{stack}: {check}");
+    }
 }
