@@ -133,3 +133,47 @@ fn every_stack_gets_the_produced_skills_lock() {
     // `impeccable` is installed by its own CLI, so it must not be locked.
     assert!(!skills.contains_key("impeccable"));
 }
+
+#[test]
+fn every_stack_gets_the_skills_tooling() {
+    let temp = tempfile::tempdir().unwrap();
+    let dest = temp.path().join("app");
+    compose_stack("router", &dest);
+
+    assert!(dest.join("scripts/skills/SkillsCli.ts").is_file());
+    assert!(dest.join("vitest.config.ts").is_file());
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dest.join("package.json")).unwrap()).unwrap();
+    let scripts = &manifest["scripts"];
+
+    // `pnpm install` is what restores the skills, so the wiring that makes
+    // that happen has to survive composition.
+    assert_eq!(scripts["skills"], "tsx scripts/skills/SkillsCli.ts");
+    assert_eq!(scripts["skills:update"], "tsx scripts/skills/SkillsCli.ts update");
+    assert!(
+        scripts["postinstall"]
+            .as_str()
+            .unwrap()
+            .contains("--only-missing"),
+        "postinstall must restore only what is missing: {}",
+        scripts["postinstall"]
+    );
+    assert_eq!(scripts["test"], "vitest run");
+    assert!(manifest["devDependencies"]["@avandar/acclimate"].is_string());
+    assert!(manifest["devDependencies"]["tsx"].is_string());
+    assert!(manifest["devDependencies"]["vitest"].is_string());
+
+    // The restored directories must not be committed by the generated repo.
+    let gitignore = std::fs::read_to_string(dest.join(".gitignore")).unwrap();
+    assert!(gitignore.contains(".agents/"));
+    assert!(gitignore.contains(".claude/skills/"));
+
+    // The lock itself is the one skills file a generated project tracks, so it
+    // must not be ignored. Comments mentioning it do not count.
+    let is_lock_ignored = gitignore
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .any(|line| line.contains("skills-lock.json"));
+    assert!(!is_lock_ignored, "skills-lock.json must stay tracked");
+}

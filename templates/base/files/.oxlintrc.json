@@ -9,7 +9,10 @@
   },
   "ignorePatterns": [
     ".agents",
+    ".claude",
+    ".codex",
     ".cursor",
+    ".opencode",
     ".tanstack",
     "coverage",
     "dist",

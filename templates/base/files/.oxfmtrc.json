@@ -12,7 +12,10 @@
   "sortPackageJson": false,
   "ignorePatterns": [
     ".agents/**",
+    ".claude/**",
+    ".codex/**",
     ".cursor/**",
+    ".opencode/**",
     ".tanstack/**",
     "dist/**",
     "node_modules/**",
