@@ -95,3 +95,41 @@ fn start_stack_composes_cleanly() {
 
     assert_no_unfilled_tokens(&dest);
 }
+
+#[test]
+fn every_stack_gets_the_produced_skills_lock() {
+    let temp = tempfile::tempdir().unwrap();
+    let dest = temp.path().join("app");
+    compose_stack("router", &dest);
+
+    let lock: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dest.join("skills-lock.json")).unwrap())
+            .unwrap();
+    let skills = lock["skills"].as_object().unwrap();
+
+    // The produced bucket, minus the skills that are not `npx skills`-managed.
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(repo_root().join("skills-manifest.json")).unwrap())
+            .unwrap();
+    let produced: Vec<&str> = manifest["produced"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|name| name.as_str().unwrap())
+        .filter(|name| !quickstarter::compose::skills_lock::CLI_MANAGED_SKILLS.contains(name))
+        .collect();
+
+    assert_eq!(skills.len(), produced.len());
+    for name in produced {
+        assert!(skills.contains_key(name), "missing {name} from the produced lock");
+        assert!(skills[name]["source"].is_string(), "{name} has no source");
+    }
+
+    // Rust skills stay in quickstarter; a generated app must never see one.
+    for name in skills.keys() {
+        assert!(!name.starts_with("rust-"), "rust skill leaked into a project: {name}");
+    }
+
+    // `impeccable` is installed by its own CLI, so it must not be locked.
+    assert!(!skills.contains_key("impeccable"));
+}

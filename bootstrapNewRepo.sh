@@ -3,10 +3,11 @@
 # bootstrapNewRepo.sh - launch the interactive project scaffolder.
 #
 # This is a thin convenience wrapper. The real tool is the Rust `quickstarter`
-# binary under `cli/`. On first run it builds the binary in release mode; after
-# that it just runs it. The binary clones the latest template repository at
-# runtime, so it always builds from the newest templates even if the binary
-# itself is old.
+# binary under `cli/`. It always rebuilds the binary in release mode before
+# running it: cargo is incremental, so an unchanged tree costs a fraction of a
+# second, and a changed `cli/src` can never be silently ignored. The binary
+# clones the latest template repository at runtime, so the templates are always
+# the newest ones too.
 #
 # Any arguments are passed straight through to the binary, e.g.:
 #   ./bootstrapNewRepo.sh --repo https://github.com/AvandarLabs/quickstarter.git
@@ -22,9 +23,8 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -x "$BIN" ]]; then
-  echo "Building the scaffolder (first run only)..."
-  cargo build --release --manifest-path "$CLI_DIR/Cargo.toml"
-fi
+# Always rebuild: never run a binary that predates the current `cli/src`.
+echo "Building the scaffolder..."
+cargo build --release --manifest-path "$CLI_DIR/Cargo.toml"
 
 exec "$BIN" "$@"
