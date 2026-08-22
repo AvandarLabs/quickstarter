@@ -30,18 +30,29 @@ This project uses [pnpm](https://pnpm.io).
 
 ## Scripts
 
-| Script            | Description                                     |
-| ----------------- | ----------------------------------------------- |
-| `pnpm dev`        | Start the Vite dev server with hot reload.      |
-| `pnpm build`      | Type-check (`tsc -b`) and build for production. |
-| `pnpm preview`    | Preview the production build locally.           |
-| `pnpm type-check` | Run the TypeScript compiler without emitting.   |
-| `pnpm lint`       | Lint with oxlint.                               |
-| `pnpm format`     | Format with oxfmt.                              |
+| Script               | Description                                     |
+| -------------------- | ----------------------------------------------- |
+| `pnpm dev`           | Start the Vite dev server with hot reload.      |
+| `pnpm build`         | Type-check (`tsc -b`) and build for production. |
+| `pnpm preview`       | Preview the production build locally.           |
+| `pnpm type-check`    | Run the TypeScript compiler without emitting.   |
+| `pnpm lint`          | Lint with oxlint.                               |
+| `pnpm format`        | Format with oxfmt.                              |
+| `pnpm test`          | Run the test suite with vitest.                 |
+| `pnpm skills`        | List this project's agent skills.               |
+| `pnpm skills:update` | Update every agent skill to its latest version. |
 
 ## Routing
 
 {{ROUTING_NOTES}}
+
+## Agent skills
+
+Agent skills are not tracked in git. `skills-lock.json` is, and `pnpm install`
+restores whatever it lists that is missing, so a fresh clone needs no extra
+step. Run `pnpm skills` to see what is installed and `pnpm skills:update` to
+refresh it. See [`docs/skills.md`](docs/skills.md) for how the two skill
+managers divide the work.
 
 ## Agent rules
 

@@ -37,9 +37,16 @@ Then it clones the latest templates, composes your project, and writes only the
 finished files to `<location>/<name>`.
 
 The Rust binary is a thin client: it clones this repository fresh on every run
-into a temporary directory (never into your project), so even an old binary
-always builds from the newest templates. It requires `git` and an internet
-connection; it will tell you if either is missing.
+into a temporary directory (never into your project), so it always builds from
+the newest templates. The launcher rebuilds the binary every run too (cargo is
+incremental, so an unchanged tree costs a fraction of a second), which means a
+change under `cli/src` can never be silently ignored. It requires `git` and an
+internet connection; it will tell you if either is missing.
+
+The generated project also arrives with a `skills-lock.json` holding the
+curated agent skills a new project should have. Its first `pnpm install`
+installs them; see the skills section of
+[`docs/scaffolder.md`](docs/scaffolder.md).
 
 To point at a different template repository:
 

@@ -89,32 +89,43 @@ the newest templates.
 
 ## Skills: quickstarter-dev vs produced repos
 
-There are two conceptually distinct skill sets, even though only the first
-exists today:
+There are two distinct skill sets, and the split is data, not convention.
 
 - **Quickstarter-dev skills** live in this repo (`.agents/skills`, tracked via
   `skills-lock.json`) so engineers working on the scaffolder share the same
   tooling. This set includes **all Rust-related skills**, because the CLI is
   written in Rust: `rust-skills`, `coding-guidelines` (Rust code style, despite
-  the generic name), and the `rust-*` tools (`rust-call-graph`,
-  `rust-code-navigator`, `rust-daily`, `rust-deps-visualizer`, `rust-learner`,
-  `rust-refactor-helper`, `rust-router`, `rust-symbol-analyzer`,
-  `rust-trait-explorer`).
+  the generic name), the `rust-*` tools, and Rust toolchain skills without the
+  prefix (`cargo-workflows`, `fuzzing`).
 
-- **Produced-repo skills** are the curated set a *generated* project should
-  receive. Installing them into generated projects is **not implemented yet**
-  (the templates install no skills today), but the split itself is already
-  deterministic.
+- **Produced-repo skills** are the curated set a *generated* project receives.
 
-The authoritative, machine-readable split lives in
-[`skills-manifest.json`](../skills-manifest.json) at the repo root. It has two
-buckets, `quickstarterDev` and `produced`, and every installed skill must
-appear in exactly one. `cli/tests/skills_manifest_test.rs` enforces this: the
-build fails if a skill is added or removed without updating the manifest, if a
-skill is in both buckets, if the manifest names a skill that is not installed,
-or if any Rust-related skill (the `rust-*` tools or `coding-guidelines`) leaks
-into the `produced` bucket. When the produced-repo install is built, it reads
-the `produced` list and resolves each skill's source from `skills-lock.json`.
+The authoritative split lives in
+[`skills-manifest.json`](../skills-manifest.json), which has a
+`quickstarterDev` and a `produced` bucket; a skill in both means it applies to
+both. `cli/tests/skills_manifest_test.rs` fails the build if a skill is
+installed but unclassified, if the manifest names a skill that is not
+installed, or if a Rust-related skill leaks into `produced`.
+
+### How produced skills reach a generated project
+
+Composition writes a `skills-lock.json` into the new project
+(`cli/src/compose/skills_lock.rs`): the `produced` bucket intersected with this
+repo's own lock, entries copied verbatim so the project pins the same sources.
+`cli/tests/real_templates_test.rs` asserts the result covers the whole produced
+set and that no Rust skill leaks through.
+
+The scaffolder itself installs nothing. The generated project's
+`postinstall` calls its own `scripts/skills` CLI, so the first `pnpm install`
+materializes `.agents/skills` and the per-frontend links from the lock. That
+keeps scaffolding fast and offline-capable, and it means a teammate cloning the
+project later goes through exactly the same path.
+
+`impeccable` is the one exception and is deliberately excluded from the
+generated lock (`CLI_MANAGED_SKILLS`): it ships its own `impeccable` CLI, which
+the project's skills wrapper drives separately. Adding another
+self-installing skill means adding it to that constant and teaching
+`scripts/skills` about it.
 
 ## Adding a new axis (future)
 

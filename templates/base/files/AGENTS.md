@@ -42,7 +42,8 @@
 Before writing code:
 
 - Determine which files in `docs/` are relevant to read.
-- Determine which available skills are relevant.
+- Determine which available skills are relevant. Run `pnpm skills` to see
+  what this project has installed.
 - Determine which tests, if any, need to be written to test the requested
   functionality.
 
@@ -119,6 +120,22 @@ When in doubt, write the test.
   - Only use inline styles if we need to dynamically compute styles.
 - Use `clsx` for conditional classes
 - Never use TailwindCSS. We are trying to deprecate it.
+
+## Agent skills
+
+- This project's agent skills are installed by two tools and neither should be
+  driven by hand: `npx skills` for everything in `skills-lock.json`, and `npx
+  impeccable` for the `impeccable` skill, which ships its own installer.
+- **Never create or edit anything under `.agents/`, `.claude/skills/`,
+  `.cursor/skills/`, or `.opencode/`.** Those directories are generated, and
+  they are gitignored: `skills-lock.json` is the only skills file in git.
+- `pnpm install` restores any locked skill that is missing, so a fresh clone
+  needs no extra step. `pnpm skills` lists what is installed and
+  `pnpm skills:update` refreshes everything.
+- To add or remove a skill, use `npx skills add` / `npx skills remove` and
+  commit the resulting `skills-lock.json` change in the same commit.
+- The wrapper lives in `scripts/skills`. See [`docs/skills.md`](docs/skills.md)
+  before changing it.
 
 ## Files to ignore
 

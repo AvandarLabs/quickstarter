@@ -35,15 +35,25 @@ by deciding where it belongs:
 
 - **`quickstarterDev`** - only useful for developing the quickstarter CLI (for
   example anything Rust-related). Never installed into generated projects.
-- **`produced`** - should be installed into every generated project.
+- **`produced`** - shipped to every generated project. The `produced` bucket is
+  live: composition writes it into the new project's `skills-lock.json`, so
+  adding a name here means the next generated project installs that skill.
 - **both** - list the skill in *both* arrays when it applies to developing
   quickstarter and to generated projects.
 
-Every installed skill must appear in at least one bucket. `cli/tests/skills_manifest_test.rs`
-fails the build if a skill is installed but unclassified, if the manifest names
-a skill that is not installed, or if any Rust-related skill (`rust-*` or
-`coding-guidelines`) is placed in `produced`. Removing a skill means removing it
-from the manifest in the same change.
+Every installed skill must appear in at least one bucket.
+`cli/tests/skills_manifest_test.rs` fails the build if a skill is installed but
+unclassified, if the manifest names a skill that is not installed, or if any
+Rust-related skill (`rust-*` or `coding-guidelines`) is placed in `produced`.
+Removing a skill means removing it from the manifest in the same change.
+
+A produced skill must also be installed here, because the generated lock copies
+its source and hash from this repo's `skills-lock.json`. A name in `produced`
+with no lock entry fails composition rather than silently shipping less.
+
+`impeccable` is `produced` but excluded from the generated lock: it installs
+itself through its own CLI. See the skills section of
+[`docs/scaffolder.md`](docs/scaffolder.md).
 
 ## Rust conventions
 
