@@ -19,10 +19,10 @@ Skills come from two tools that know nothing about each other:
 `scripts/skills/SkillsCli.ts` wraps both so there is one place to ask what is
 installed and one place to bring it up to date:
 
-| Command             | What it does                                                    |
-| ------------------- | --------------------------------------------------------------- |
-| `pnpm skills`       | Merged listing of every skill, flagging any that are missing.    |
-| `pnpm skills:update`| Refresh every locked source plus impeccable to their latest.     |
+| Command              | What it does                                                  |
+| -------------------- | ------------------------------------------------------------- |
+| `pnpm skills`        | Merged listing of every skill, flagging any that are missing. |
+| `pnpm skills:update` | Refresh every locked source plus impeccable to their latest.  |
 
 Never create the per-frontend symlinks or copies by hand. Each manager owns the
 layout its own frontends expect, and hand-made links drift the moment either

@@ -124,8 +124,8 @@ When in doubt, write the test.
 ## Agent skills
 
 - This project's agent skills are installed by two tools and neither should be
-  driven by hand: `npx skills` for everything in `skills-lock.json`, and `npx
-  impeccable` for the `impeccable` skill, which ships its own installer.
+  driven by hand: `npx skills` for everything in `skills-lock.json`, and
+  `npx impeccable` for the `impeccable` skill, which ships its own installer.
 - **Never create or edit anything under `.agents/`, `.claude/skills/`,
   `.cursor/skills/`, or `.opencode/`.** Those directories are generated, and
   they are gitignored: `skills-lock.json` is the only skills file in git.
