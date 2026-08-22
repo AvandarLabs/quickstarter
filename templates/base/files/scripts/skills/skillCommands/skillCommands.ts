@@ -36,7 +36,9 @@ export function createSkillsListCommand(): CommandSpec {
  * `--skill` and `--agent` are variadic, so the names are passed as separate
  * arguments: a comma-joined list is read as one unknown skill name. `-y`
  * accepts the security prompt, which is what makes this usable from
- * `postinstall`.
+ * `postinstall`. `--full-depth` is what finds skills nested inside a
+ * monorepo: without it a shallow `SKILL.md` ends the search and the deeper
+ * skills are reported as not found.
  *
  * @param group The source repository and the skills wanted from it.
  * @returns The `skills add` command for that repository.
@@ -56,6 +58,7 @@ export function createSkillsAddCommand(
       ...group.skillNames,
       "--agent",
       ...SKILL_AGENT_NAMES,
+      "--full-depth",
       "-y",
     ],
   };
