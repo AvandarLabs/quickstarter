@@ -132,7 +132,10 @@ non-interactive path is covered end to end without a network.
 3. Use only capabilities that exist in
    [`skills-manifest.json`](../skills-manifest.json). An unknown one fails
    `skills_manifest_test`, because it would silently install no skills.
-4. Run `cargo test`. Module discovery is data-driven, so no Rust changes are
+4. Wire `scripts/skills/update-skills.sh` to whatever the stack's task runner
+   is, so people type the name they expect. See "Wiring the update script into
+   a stack" below.
+5. Run `cargo test`. Module discovery is data-driven, so no Rust changes are
    needed to make the new stack selectable.
 
 ## Skills: capability tags, not repo types
@@ -220,12 +223,41 @@ That script is the generated project's single "update every skill" entry point:
 `npx skills update --project` for everything in the lock, then each
 self-installing skill through its own CLI. It is plain `sh` rather than part of
 the TypeScript tooling because every generated project needs it, including the
-non-TypeScript ones to come; each stack only wires it to its own idiom (a
-`skills:update` script in `package.json` for the TypeScript stacks).
+non-TypeScript ones to come.
 
 Adding another self-installing skill means teaching
 `cli/src/skills/commands.rs` about it (so the scaffolder installs it and the
 token names it) and `scripts/skills/update-skills.sh` how to update it.
+
+### Wiring the update script into a stack
+
+The script is the implementation; a stack only gives it the name people on that
+stack expect to type. It stays directly runnable
+(`./scripts/skills/update-skills.sh`), so the wiring is convenience, never a
+dependency.
+
+| Stack | Entry point | Where it is declared |
+| --- | --- | --- |
+| TypeScript | `pnpm skills:update` | `scripts` in `package.json` |
+| Rust | `just skills-update` | a `justfile` at the project root |
+
+Rust has no built-in task registry, which is exactly why `just` and
+`cargo xtask` exist. `just` is the choice here: it is itself a Rust tool
+(`cargo install just`), it is the task runner most Rust projects reach for, a
+task costs one line, and `just --list` makes the tasks discoverable the way
+`package.json` scripts are. A Rust module ships this recipe and nothing else:
+
+```just
+# Update every agent skill this project has.
+skills-update:
+    ./scripts/skills/update-skills.sh
+```
+
+`cargo xtask` is the alternative, and it earns its keep when a task needs real
+Rust code (codegen, packaging, release). A whole workspace crate whose only job
+is to exec a shell script does not. A `Makefile` needs nothing installed, but it
+is not what a modern Rust project reaches for, and its tab rules are a trap for
+a one-line recipe.
 
 `cli/tests/skills_manifest_test.rs` guards the manifest itself rather than
 comparing it against what is installed: every spec is well formed, no spec is

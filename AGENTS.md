@@ -61,7 +61,9 @@ because it installs itself through its own CLI. The generated project is told
 which of its skills are self-installing through the `SELF_INSTALLING_SKILLS`
 token, so its own `scripts/skills/update-skills.sh` can update them the same
 way. Another self-installing skill means teaching
-`cli/src/skills/commands.rs` about it and that script how to update it.
+`cli/src/skills/commands.rs` about it and that script how to update it. A new
+stack wires that one script to its own task runner (`pnpm skills:update` on the
+TypeScript stacks, `just skills-update` on a Rust one).
 
 `cli/tests/skills_manifest_test.rs` guards the manifest's invariants: every
 spec well formed and unique, a non-empty `global`, and every capability a
