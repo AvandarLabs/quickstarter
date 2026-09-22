@@ -34,8 +34,7 @@ fmt:
 fmt-check:
     cargo fmt --check
 
-# Everything that has to pass before a change lands. It only reports: run
-# `just fmt` to fix what `fmt-check` complains about.
+# Everything that has to pass before a change lands (reports only: `just fmt` fixes).
 check: fmt-check lint test
 
 # Build release and install the binary into $BIN_DIR (default ~/.local/bin).
