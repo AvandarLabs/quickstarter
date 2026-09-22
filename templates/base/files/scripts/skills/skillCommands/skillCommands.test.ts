@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createImpeccableInstallCommand,
-  createImpeccableUpdateCommand,
   createSkillsAddCommand,
   createSkillsListCommand,
+  createSkillsUpdateCommand,
 } from "./skillCommands";
 
 describe("createSkillsListCommand", () => {
@@ -53,7 +53,7 @@ describe("createSkillsAddCommand", () => {
   });
 });
 
-describe("impeccable commands", () => {
+describe("createImpeccableInstallCommand", () => {
   it("installs non-interactively for every frontend", () => {
     const command = createImpeccableInstallCommand();
 
@@ -65,12 +65,19 @@ describe("impeccable commands", () => {
       "--scope=project",
     ]);
   });
+});
 
-  it("updates in place", () => {
-    expect(createImpeccableUpdateCommand().args).toEqual([
-      "-y",
-      "impeccable",
-      "update",
-    ]);
+describe("createSkillsUpdateCommand", () => {
+  it("runs the update script with no arguments", () => {
+    // The script is the single implementation of "update every skill", so
+    // there is nothing for this side to decide or pass along.
+    const command = createSkillsUpdateCommand();
+
+    expect(command.command).toBe("./scripts/skills/update-skills.sh");
+    expect(command.args).toEqual([]);
+  });
+
+  it("labels itself for progress output", () => {
+    expect(createSkillsUpdateCommand().label).toBe("skills update");
   });
 });

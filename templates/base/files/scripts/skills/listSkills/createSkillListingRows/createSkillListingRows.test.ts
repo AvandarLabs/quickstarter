@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { IMPECCABLE_SKILL_NAME } from "../../constants";
 import { createSkillListingRows } from "./createSkillListingRows";
 import type { InstalledSkill, SkillSourceGroup } from "../../skills.types";
 
@@ -24,6 +25,13 @@ const INSTALLED_IMPECCABLE: InstalledSkill = {
   agents: ["Claude Code"],
   path: "/app/.agents/skills/impeccable",
 };
+
+/**
+ * A project the scaffolder gave impeccable to. It is stated rather than taken
+ * from the constant so these tests describe one project shape whatever this
+ * project's own capabilities selected.
+ */
+const WITH_IMPECCABLE = [IMPECCABLE_SKILL_NAME];
 
 function namesOf(rows: ReadonlyArray<{ name: string }>): string[] {
   return rows.map((row) => {
@@ -66,6 +74,7 @@ describe("createSkillListingRows", () => {
     const rows = createSkillListingRows({
       installedSkills: [INSTALLED_BRAINSTORMING],
       sourceGroups: SOURCE_GROUPS,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     expect(rows).toContainEqual({
@@ -75,6 +84,18 @@ describe("createSkillListingRows", () => {
       agents: [],
       isInstalled: false,
     });
+  });
+
+  it("says nothing about impeccable in a project that does not have it", () => {
+    // Impeccable is in no lock file, so a project that never selected it would
+    // otherwise be told forever that a skill it does not want is missing.
+    const rows = createSkillListingRows({
+      installedSkills: [INSTALLED_BRAINSTORMING],
+      sourceGroups: SOURCE_GROUPS,
+      selfInstallingSkillNames: [],
+    });
+
+    expect(namesOf(rows)).toEqual(["brainstorming", "writing-plans"]);
   });
 
   it("lists impeccable once when it is installed", () => {

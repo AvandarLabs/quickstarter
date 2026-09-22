@@ -195,6 +195,8 @@ runs them. Installing is best-effort like `git init`: a failure prints a
 warning naming the commands to re-run, and never discards the project the user
 just created.
 
+### Skills that install themselves
+
 `pbakaus/impeccable` is listed under `global` but is the one spec the
 scaffolder does not hand to `npx skills`. It ships its own installer, so it is
 run as:
@@ -204,8 +206,26 @@ npx -y impeccable install \
   --providers=claude,cursor,opencode,codex --scope=project
 ```
 
+A generated project has to keep updating that skill the same way, and it cannot
+work out which of its skills are self-installing on its own: they are not in
+`skills-lock.json`, which is exactly why they need their own installer. So the
+scaffolder tells it. `SELF_INSTALLING_SKILLS` is a built-in token, computed
+from the selected specs (`cli/src/app.rs`), that the templates substitute:
+today it lands in the project's `scripts/skills/update-skills.sh` as
+`SELF_INSTALLING_SKILLS="impeccable"`, and in the project's TypeScript skills
+constants. A project whose capabilities select no self-installing skill gets an
+empty list and skips that step.
+
+That script is the generated project's single "update every skill" entry point:
+`npx skills update --project` for everything in the lock, then each
+self-installing skill through its own CLI. It is plain `sh` rather than part of
+the TypeScript tooling because every generated project needs it, including the
+non-TypeScript ones to come; each stack only wires it to its own idiom (a
+`skills:update` script in `package.json` for the TypeScript stacks).
+
 Adding another self-installing skill means teaching
-`cli/src/skills/commands.rs` about it.
+`cli/src/skills/commands.rs` about it (so the scaffolder installs it and the
+token names it) and `scripts/skills/update-skills.sh` how to update it.
 
 `cli/tests/skills_manifest_test.rs` guards the manifest itself rather than
 comparing it against what is installed: every spec is well formed, no spec is

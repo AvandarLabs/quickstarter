@@ -21,6 +21,7 @@ fn composes_base_plus_module_with_merge_and_tokens() {
         module,
         project_name: "My App",
         package_name: "my-app",
+        extra_tokens: Default::default(),
     };
     compose::compose(&plan, &dest).unwrap();
 

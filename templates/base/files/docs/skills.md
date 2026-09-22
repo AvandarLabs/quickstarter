@@ -16,14 +16,26 @@ Skills come from two tools that know nothing about each other:
   installer and writes a copy per frontend (`.agents`, `.claude`, `.cursor`,
   `.opencode`) plus its hook manifests, so it is never in `skills-lock.json`.
 
-`scripts/skills/SkillsCli.ts` wraps both so there is one place to ask what is
-installed and one place to bring it up to date:
+One wrapper and one script cover both, so there is a single place to ask what
+is installed and a single place to bring it up to date:
 
 | Command               | What it does                                                  |
 | --------------------- | ------------------------------------------------------------- |
 | `pnpm skills`         | Merged listing of every skill, flagging any that are missing. |
 | `pnpm skills:install` | Install the locked skills that are not on disk yet.           |
-| `pnpm skills:update`  | Update every installed skill to its latest version.           |
+| `pnpm skills:update`  | Update every skill, from both managers.                       |
+
+`pnpm skills` and `pnpm skills:install` run `scripts/skills/SkillsCli.ts`.
+`pnpm skills:update` runs `scripts/skills/update-skills.sh`, which is a plain
+shell script on purpose: updating skills is the one thing every project does
+the same way whatever it is written in, so it does not go through the
+TypeScript tooling. The script updates everything in the lock with `npx skills
+update`, then updates each self-installing skill through its own CLI. That list
+is at the top of the script, written when the project was scaffolded:
+
+```sh
+SELF_INSTALLING_SKILLS="impeccable"
+```
 
 Never create the per-frontend symlinks or copies by hand. Each manager owns the
 layout its own frontends expect, and hand-made links drift the moment either

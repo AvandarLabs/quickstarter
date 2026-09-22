@@ -6,14 +6,20 @@ import { installSkills, updateSkills } from "./syncSkills/syncSkills";
  * `pnpm skills` - the front door to this project's agent skills.
  *
  * Two tools install skills here and neither knows about the other: `npx
- * skills` handles everything in `skills-lock.json`, and `npx impeccable`
- * installs itself. This CLI wraps both so there is one place to ask what is
- * installed and one place to change it.
+ * skills` handles everything in `skills-lock.json`, and a skill that ships its
+ * own installer, such as `impeccable`, installs itself. This CLI wraps both so
+ * there is one place to ask what is installed and one place to change it.
  *
  * The skills themselves are not tracked in git. `install` and `update` are
  * separate on purpose, and they mirror how pnpm treats packages: `postinstall`
  * runs `install`, which only adds what the lock asks for and is missing, while
  * `update` is the explicit step that fetches newer versions.
+ *
+ * Only the install is implemented in TypeScript. Updating lives in
+ * `scripts/skills/update-skills.sh` and this CLI simply runs it, because a
+ * generated project may have no TypeScript tooling at all: one shell script is
+ * what lets every project, whatever it is written in, update its skills the
+ * same way.
  */
 
 const QUIET_OPTION = {
@@ -36,7 +42,10 @@ const InstallSkillsCLI = Acclimate.createCLI("install")
   });
 
 const UpdateSkillsCLI = Acclimate.createCLI("update")
-  .description("Update every installed skill to its latest version.")
+  .description(
+    "Update every installed skill to its latest version by running " +
+      "scripts/skills/update-skills.sh.",
+  )
   .addOption(QUIET_OPTION)
   .action(async ({ quiet }) => {
     const result = await updateSkills({ quiet });

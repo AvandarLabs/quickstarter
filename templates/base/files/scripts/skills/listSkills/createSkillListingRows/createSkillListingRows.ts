@@ -1,6 +1,7 @@
 import {
   IMPECCABLE_SKILL_NAME,
   IMPECCABLE_SKILL_SOURCE,
+  SELF_INSTALLING_SKILL_NAMES,
 } from "../../constants";
 import type {
   InstalledSkill,
@@ -14,6 +15,14 @@ type CreateSkillListingRowsOptions = {
 
   /** What `skills-lock.json` says this project should have. */
   sourceGroups: readonly SkillSourceGroup[];
+
+  /**
+   * The skills that install themselves, which no lock file mentions. It
+   * defaults to what the scaffolder wrote for this project so no caller can
+   * drift from it; a test passes it to describe a project of a different
+   * shape.
+   */
+  selfInstallingSkillNames?: readonly string[];
 };
 
 function _createRowFromInstalledSkill(
@@ -59,16 +68,26 @@ function _createMissingLockedRows(
 }
 
 /**
- * Builds the impeccable row when it is absent. Impeccable is never in the
- * lock, so its absence has to be inferred rather than read.
+ * Builds the impeccable row when this project has impeccable and it is absent.
+ * Impeccable is never in the lock, so both whether it is wanted and whether it
+ * is there have to be answered outside the lock: the first by the list the
+ * scaffolder wrote, the second by what the managers report.
  */
 function _createMissingImpeccableRows(
-  installedSkills: readonly InstalledSkill[],
+  options: Readonly<CreateSkillListingRowsOptions>,
 ): SkillListingRow[] {
+  const {
+    installedSkills,
+    selfInstallingSkillNames = SELF_INSTALLING_SKILL_NAMES,
+  } = options;
+
+  const usesImpeccable = selfInstallingSkillNames.includes(
+    IMPECCABLE_SKILL_NAME,
+  );
   const isInstalled = installedSkills.some((skill) => {
     return skill.name === IMPECCABLE_SKILL_NAME;
   });
-  if (isInstalled) {
+  if (!usesImpeccable || isInstalled) {
     return [];
   }
   return [
@@ -92,6 +111,7 @@ function _createMissingImpeccableRows(
  *
  * @param options.installedSkills Skills the managers report on disk.
  * @param options.sourceGroups Locked skills grouped by source repository.
+ * @param options.selfInstallingSkillNames Skills that install themselves.
  * @returns One row per skill, ordered by name.
  */
 export function createSkillListingRows(
@@ -100,7 +120,7 @@ export function createSkillListingRows(
   return [
     ...options.installedSkills.map(_createRowFromInstalledSkill),
     ..._createMissingLockedRows(options),
-    ..._createMissingImpeccableRows(options.installedSkills),
+    ..._createMissingImpeccableRows(options),
   ].sort((left, right) => {
     return left.name.localeCompare(right.name);
   });

@@ -8,6 +8,7 @@ use crate::catalog;
 use crate::cli::{Args, Resolver};
 use crate::compose::{self, ComposePlan};
 use crate::git_init;
+use crate::skills::commands;
 use crate::skills::install::{self, InstallOutcome, ProcessRunner};
 use crate::template::{self, ensure_git_available};
 
@@ -39,35 +40,60 @@ pub fn run(args: &Args) -> Result<()> {
     let modules = catalog::discover_modules(&checkout.path().join("templates"))?;
     let module = resolver.stack(args.stack.as_deref(), &modules)?;
 
+    // The skills are selected before composition, because the new project's
+    // update script has to be told which of them install themselves.
+    let specs = select_skill_specs(checkout.path(), module);
     let plan = ComposePlan {
         template_root: checkout.path(),
         module,
         project_name: &project_name,
         package_name: &package_name,
+        extra_tokens: skill_tokens(&specs),
     };
     compose::compose(&plan, &dest).inspect_err(|_| {
         // Do not leave a half-built directory behind.
         std::fs::remove_dir_all(&dest).ok();
     })?;
 
-    install_agent_skills(checkout.path(), module, &dest);
+    install_agent_skills(&specs, &dest);
     init_git_repository(&dest);
     report_success(&project_name, &dest, module);
     Ok(())
 }
 
-/// Installs the agent skills the chosen stack calls for, inside the new
-/// project. Best-effort like the git initialization: a skill that will not
-/// install is reported with the command to run by hand, and never costs the
-/// user the project they just created.
-fn install_agent_skills(template_root: &Path, module: &catalog::Module, dest: &Path) {
-    let planned = match install::plan(template_root, &module.capabilities) {
-        Ok(planned) => planned,
+/// The skills the chosen stack's capabilities select.
+///
+/// Best-effort: a template repository whose manifest cannot be read costs the
+/// user their skills, not their project, so the problem is reported and the
+/// selection is empty.
+fn select_skill_specs(template_root: &Path, module: &catalog::Module) -> Vec<String> {
+    match install::select_specs(template_root, &module.capabilities) {
+        Ok(specs) => specs,
         Err(error) => {
-            eprintln!("Warning: no agent skills were installed: {error:#}");
-            return;
+            eprintln!("Warning: no agent skills were selected: {error:#}");
+            Vec::new()
         }
-    };
+    }
+}
+
+/// The tokens the templates need about the selected skills: the names of the
+/// ones that install themselves, which the new project's update script drives
+/// through their own CLI.
+fn skill_tokens(specs: &[String]) -> compose::tokens::Tokens {
+    let mut tokens = compose::tokens::Tokens::new();
+    tokens.insert(
+        "SELF_INSTALLING_SKILLS".to_string(),
+        commands::self_installing_skill_names(specs).join(" "),
+    );
+    tokens
+}
+
+/// Installs the selected agent skills inside the new project. Best-effort like
+/// the git initialization: a skill that will not install is reported with the
+/// command to run by hand, and never costs the user the project they just
+/// created.
+fn install_agent_skills(specs: &[String], dest: &Path) {
+    let planned = commands::install_commands(specs);
     if planned.is_empty() {
         return;
     }

@@ -1,30 +1,22 @@
 import {
+  IMPECCABLE_SKILL_NAME,
+  SELF_INSTALLING_SKILL_NAMES,
+} from "../../constants";
+import {
   createImpeccableInstallCommand,
-  createImpeccableUpdateCommand,
   createSkillsAddCommand,
 } from "../../skillCommands/skillCommands";
 import type { CommandSpec, SkillSourceGroup } from "../../skills.types";
 
-/**
- * Whether to bring the project up to the lock, or up to the latest.
- *
- * - `install` touches only what is absent, mirroring `pnpm install`: an
- *   already-installed skill is left exactly as it is.
- * - `update` refreshes everything, mirroring an explicit dependency update.
- */
-export type SkillsSyncMode = "install" | "update";
-
-/** What a sync will do, worked out before anything is executed. */
+/** What an install will do, worked out before anything is executed. */
 export type SkillsSyncPlan = {
   commands: CommandSpec[];
 
-  /** Locked skills that are not on disk, whatever the mode. */
+  /** Locked skills that are not on disk. */
   missingSkillNames: string[];
 };
 
 type CreateSkillsSyncPlanOptions = {
-  mode: SkillsSyncMode;
-
   /** The locked skills, grouped by the repository they come from. */
   sourceGroups: readonly SkillSourceGroup[];
 
@@ -32,37 +24,57 @@ type CreateSkillsSyncPlanOptions = {
   installedSkillNames: readonly string[];
 
   isImpeccableInstalled: boolean;
+
+  /**
+   * The skills that install themselves through their own CLI. It defaults to
+   * what the scaffolder wrote for this project so no caller can drift from it;
+   * a test passes it to describe a project of a different shape.
+   */
+  selfInstallingSkillNames?: readonly string[];
 };
 
-function _createSkillsCommands(
+/**
+ * One `skills add` per source that is still owed something. Only the missing
+ * skills are asked for: this mirrors `pnpm install`, which does not re-resolve
+ * a package that is already there.
+ */
+function _createSkillsAddCommands(
   options: Readonly<CreateSkillsSyncPlanOptions>,
 ): CommandSpec[] {
-  const { mode, sourceGroups, installedSkillNames } = options;
-  const installedNames = new Set(installedSkillNames);
+  const installedNames = new Set(options.installedSkillNames);
 
-  return sourceGroups.flatMap((group) => {
-    const wantedNames =
-      mode === "update"
-        ? group.skillNames
-        : group.skillNames.filter((skillName) => {
-            return !installedNames.has(skillName);
-          });
+  return options.sourceGroups.flatMap((group) => {
+    const missingNames = group.skillNames.filter((skillName) => {
+      return !installedNames.has(skillName);
+    });
 
-    if (wantedNames.length === 0) {
+    if (missingNames.length === 0) {
       return [];
     }
-    return [createSkillsAddCommand({ ...group, skillNames: wantedNames })];
+    return [createSkillsAddCommand({ ...group, skillNames: missingNames })];
   });
 }
 
+/**
+ * The impeccable install, when this project has impeccable at all and it is
+ * not on disk yet. Impeccable is never in the lock, so whether it is wanted
+ * has to be read from the self-installing list rather than inferred.
+ */
 function _createImpeccableCommands(
   options: Readonly<CreateSkillsSyncPlanOptions>,
 ): CommandSpec[] {
-  const { mode, isImpeccableInstalled } = options;
-  if (!isImpeccableInstalled) {
-    return [createImpeccableInstallCommand()];
+  const {
+    isImpeccableInstalled,
+    selfInstallingSkillNames = SELF_INSTALLING_SKILL_NAMES,
+  } = options;
+
+  const usesImpeccable = selfInstallingSkillNames.includes(
+    IMPECCABLE_SKILL_NAME,
+  );
+  if (!usesImpeccable || isImpeccableInstalled) {
+    return [];
   }
-  return mode === "update" ? [createImpeccableUpdateCommand()] : [];
+  return [createImpeccableInstallCommand()];
 }
 
 function _findMissingSkillNames(
@@ -82,15 +94,17 @@ function _findMissingSkillNames(
 }
 
 /**
- * Works out which commands a sync needs to run.
+ * Works out which commands an install needs to run.
  *
- * Keeping the decision separate from running it is what makes both modes
- * testable without touching the network.
+ * Installing is the only thing planned here: updating is the job of
+ * `scripts/skills/update-skills.sh`, which drives both managers itself so
+ * every generated project updates the same way. Keeping this decision separate
+ * from running it is what makes it testable without touching the network.
  *
- * @param options.mode Install what is missing, or update everything.
  * @param options.sourceGroups Locked skills grouped by source repository.
  * @param options.installedSkillNames Skills currently on disk.
  * @param options.isImpeccableInstalled Whether impeccable is on disk.
+ * @param options.selfInstallingSkillNames Skills that install themselves.
  * @returns The commands to run and the locked skills that are missing.
  */
 export function createSkillsSyncPlan(
@@ -98,7 +112,7 @@ export function createSkillsSyncPlan(
 ): SkillsSyncPlan {
   return {
     commands: [
-      ..._createSkillsCommands(options),
+      ..._createSkillsAddCommands(options),
       ..._createImpeccableCommands(options),
     ],
     missingSkillNames: _findMissingSkillNames(options),

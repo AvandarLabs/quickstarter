@@ -15,7 +15,7 @@ use anyhow::{Context, Result};
 /// File extensions whose contents may contain tokens. Anything else (images,
 /// lockfiles, binaries) is left byte-for-byte untouched.
 const TEXT_EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "js", "jsx", "mjs", "cjs", "json", "md", "html", "css", "txt", "yml", "yaml",
+    "ts", "tsx", "js", "jsx", "mjs", "cjs", "json", "md", "html", "css", "txt", "yml", "yaml", "sh",
 ];
 
 /// A map of token name (without the `{{ }}` delimiters) to replacement value.
@@ -106,6 +106,21 @@ mod tests {
         let tokens = tokens_from(&[("KNOWN", "value")]);
         let output = substitute("{{KNOWN}} and {{UNKNOWN}}", &tokens);
         assert_eq!(output, "value and {{UNKNOWN}}");
+    }
+
+    #[test]
+    fn substitutes_shell_scripts_too() {
+        let temp = tempfile::tempdir().unwrap();
+        let script = temp.path().join("update-skills.sh");
+        std::fs::write(&script, "SELF_INSTALLING_SKILLS=\"{{SELF_INSTALLING_SKILLS}}\"").unwrap();
+
+        substitute_in_tree(temp.path(), &tokens_from(&[("SELF_INSTALLING_SKILLS", "impeccable")]))
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&script).unwrap(),
+            "SELF_INSTALLING_SKILLS=\"impeccable\""
+        );
     }
 
     #[test]

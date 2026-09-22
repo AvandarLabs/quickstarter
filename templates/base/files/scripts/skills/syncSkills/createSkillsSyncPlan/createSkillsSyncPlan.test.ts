@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { IMPECCABLE_SKILL_NAME } from "../../constants";
 import { createSkillsSyncPlan } from "./createSkillsSyncPlan";
 import type { SkillSourceGroup } from "../../skills.types";
 
@@ -17,19 +18,26 @@ const EVERY_SKILL_INSTALLED = [
   "impeccable",
 ];
 
+/**
+ * A project the scaffolder gave impeccable to. It is stated rather than taken
+ * from the constant so these tests describe one project shape whatever this
+ * project's own capabilities selected.
+ */
+const WITH_IMPECCABLE = [IMPECCABLE_SKILL_NAME];
+
 function labelsOf(commands: ReadonlyArray<{ label: string }>): string[] {
   return commands.map((command) => {
     return command.label;
   });
 }
 
-describe("createSkillsSyncPlan in install mode", () => {
+describe("createSkillsSyncPlan", () => {
   it("installs nothing when every locked skill is already on disk", () => {
     const plan = createSkillsSyncPlan({
-      mode: "install",
       sourceGroups: SOURCE_GROUPS,
       installedSkillNames: EVERY_SKILL_INSTALLED,
       isImpeccableInstalled: true,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     // This is the `pnpm install` path: an installed skill is left alone, the
@@ -40,10 +48,10 @@ describe("createSkillsSyncPlan in install mode", () => {
 
   it("skips sources whose skills are all installed", () => {
     const plan = createSkillsSyncPlan({
-      mode: "install",
       sourceGroups: SOURCE_GROUPS,
       installedSkillNames: ["mantine-combobox", "brainstorming", "impeccable"],
       isImpeccableInstalled: true,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     expect(labelsOf(plan.commands)).toEqual(["skills add obra/superpowers"]);
@@ -51,82 +59,82 @@ describe("createSkillsSyncPlan in install mode", () => {
 
   it("asks only for the skills that are missing", () => {
     const plan = createSkillsSyncPlan({
-      mode: "install",
       sourceGroups: SOURCE_GROUPS,
       installedSkillNames: ["mantine-combobox", "brainstorming", "impeccable"],
       isImpeccableInstalled: true,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     expect(plan.commands[0]?.args).toContain("writing-plans");
     expect(plan.commands[0]?.args).not.toContain("brainstorming");
   });
 
-  it("installs impeccable when it is the only thing missing", () => {
+  it("installs every source and impeccable in an empty project", () => {
     const plan = createSkillsSyncPlan({
-      mode: "install",
       sourceGroups: SOURCE_GROUPS,
-      installedSkillNames: EVERY_SKILL_INSTALLED,
+      installedSkillNames: [],
       isImpeccableInstalled: false,
-    });
-
-    expect(labelsOf(plan.commands)).toEqual(["impeccable install"]);
-  });
-});
-
-describe("createSkillsSyncPlan in update mode", () => {
-  it("refreshes every source and impeccable even when nothing is missing", () => {
-    const plan = createSkillsSyncPlan({
-      mode: "update",
-      sourceGroups: SOURCE_GROUPS,
-      installedSkillNames: EVERY_SKILL_INSTALLED,
-      isImpeccableInstalled: true,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     expect(labelsOf(plan.commands)).toEqual([
       "skills add mantinedev/skills",
       "skills add obra/superpowers",
-      "impeccable update",
+      "impeccable install",
     ]);
   });
 
-  it("asks for every locked skill of a source, not just the missing ones", () => {
+  it("installs impeccable when it is the only thing missing", () => {
     const plan = createSkillsSyncPlan({
-      mode: "update",
       sourceGroups: SOURCE_GROUPS,
-      installedSkillNames: ["brainstorming"],
-      isImpeccableInstalled: true,
-    });
-
-    const superpowers = plan.commands[1];
-    expect(superpowers?.args).toContain("brainstorming");
-    expect(superpowers?.args).toContain("writing-plans");
-  });
-
-  it("installs impeccable rather than updating it when it is absent", () => {
-    const plan = createSkillsSyncPlan({
-      mode: "update",
-      sourceGroups: [],
-      installedSkillNames: [],
+      installedSkillNames: EVERY_SKILL_INSTALLED,
       isImpeccableInstalled: false,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
     });
 
     expect(labelsOf(plan.commands)).toEqual(["impeccable install"]);
   });
-});
 
-describe("createSkillsSyncPlan", () => {
-  it("reports every locked skill that is not on disk, in either mode", () => {
-    const options = {
+  it("leaves an installed impeccable alone", () => {
+    // Refreshing it is the update script's job, never an install's.
+    const plan = createSkillsSyncPlan({
+      sourceGroups: [],
+      installedSkillNames: ["impeccable"],
+      isImpeccableInstalled: true,
+      selfInstallingSkillNames: WITH_IMPECCABLE,
+    });
+
+    expect(plan.commands).toEqual([]);
+  });
+
+  it("plans no impeccable command for a project that does not have it", () => {
+    // The scaffolder writes the self-installing list from its capability
+    // manifest, so a project that selected no such skill must never be handed
+    // an impeccable install it did not ask for.
+    const plan = createSkillsSyncPlan({
+      sourceGroups: SOURCE_GROUPS,
+      installedSkillNames: [],
+      isImpeccableInstalled: false,
+      selfInstallingSkillNames: [],
+    });
+
+    expect(labelsOf(plan.commands)).toEqual([
+      "skills add mantinedev/skills",
+      "skills add obra/superpowers",
+    ]);
+  });
+
+  it("reports every locked skill that is not on disk", () => {
+    const plan = createSkillsSyncPlan({
       sourceGroups: SOURCE_GROUPS,
       installedSkillNames: ["brainstorming"],
       isImpeccableInstalled: false,
-    };
+      selfInstallingSkillNames: WITH_IMPECCABLE,
+    });
 
-    expect(
-      createSkillsSyncPlan({ ...options, mode: "install" }).missingSkillNames,
-    ).toEqual(["mantine-combobox", "writing-plans"]);
-    expect(
-      createSkillsSyncPlan({ ...options, mode: "update" }).missingSkillNames,
-    ).toEqual(["mantine-combobox", "writing-plans"]);
+    expect(plan.missingSkillNames).toEqual([
+      "mantine-combobox",
+      "writing-plans",
+    ]);
   });
 });

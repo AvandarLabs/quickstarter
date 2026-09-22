@@ -133,6 +133,10 @@ When in doubt, write the test.
   needs no extra step. `pnpm skills` lists what is installed,
   `pnpm skills:install` is the same step run on demand, and
   `pnpm skills:update` upgrades everything to the latest.
+- `pnpm skills:update` runs `scripts/skills/update-skills.sh`, which updates
+  both managers: `npx skills` for the lock, and each self-installing skill
+  (the list at the top of the script) through its own CLI. Update skills there,
+  never by calling one manager by hand.
 - To add or remove a skill, use `npx skills add` / `npx skills remove` and
   commit the resulting `skills-lock.json` change in the same commit.
 - The wrapper lives in `scripts/skills`. See [`docs/skills.md`](docs/skills.md)

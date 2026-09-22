@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "skills": "tsx scripts/skills/SkillsCli.ts",
     "skills:install": "tsx scripts/skills/SkillsCli.ts install",
-    "skills:update": "tsx scripts/skills/SkillsCli.ts update",
+    "skills:update": "./scripts/skills/update-skills.sh",
     "postinstall": "tsx scripts/skills/SkillsCli.ts install --quiet",
     "check": "pnpm format:check && pnpm lint && pnpm build && pnpm test"
   },

@@ -57,8 +57,11 @@ Two skill sets live here and they are independent of each other.
 The manifest is live: the scaffolder installs the selected specs with `npx
 skills add` inside the new project, so a spec added here is installed by the
 next run. `pbakaus/impeccable` is the one spec not handed to `npx skills`,
-because it installs itself through its own CLI; another self-installing skill
-means teaching `cli/src/skills/commands.rs` about it.
+because it installs itself through its own CLI. The generated project is told
+which of its skills are self-installing through the `SELF_INSTALLING_SKILLS`
+token, so its own `scripts/skills/update-skills.sh` can update them the same
+way. Another self-installing skill means teaching
+`cli/src/skills/commands.rs` about it and that script how to update it.
 
 `cli/tests/skills_manifest_test.rs` guards the manifest's invariants: every
 spec well formed and unique, a non-empty `global`, and every capability a

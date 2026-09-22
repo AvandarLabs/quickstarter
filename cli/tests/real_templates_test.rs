@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 
 use quickstarter::catalog::{self, Module};
 use quickstarter::compose::{self, ComposePlan};
+use quickstarter::skills::install;
 use quickstarter::skills::manifest;
+use quickstarter::skills::commands;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -19,11 +21,22 @@ fn compose_stack(key: &str, dest: &Path) -> Module {
     let root = repo_root();
     let modules = catalog::discover_modules(&root.join("templates")).unwrap();
     let module = modules.iter().find(|m| m.key == key).unwrap().clone();
+
+    // The real run selects the skills first, because the templates carry a
+    // token naming the ones that install themselves.
+    let specs = install::select_specs(&root, &module.capabilities).unwrap();
+    let mut extra_tokens = compose::tokens::Tokens::new();
+    extra_tokens.insert(
+        "SELF_INSTALLING_SKILLS".to_string(),
+        commands::self_installing_skill_names(&specs).join(" "),
+    );
+
     let plan = ComposePlan {
         template_root: &root,
         module: &module,
         project_name: "Demo App",
         package_name: "demo-app",
+        extra_tokens,
     };
     compose::compose(&plan, dest).unwrap();
     module
@@ -158,7 +171,7 @@ fn every_stack_gets_the_skills_tooling() {
     // to survive composition.
     assert_eq!(scripts["skills"], "tsx scripts/skills/SkillsCli.ts");
     assert_eq!(scripts["skills:install"], "tsx scripts/skills/SkillsCli.ts install");
-    assert_eq!(scripts["skills:update"], "tsx scripts/skills/SkillsCli.ts update");
+    assert_eq!(scripts["skills:update"], "./scripts/skills/update-skills.sh");
 
     // `postinstall` must install, never update: `pnpm install` does not
     // upgrade an installed package and must not upgrade an installed skill.
@@ -183,6 +196,38 @@ fn every_stack_gets_the_skills_tooling() {
         .filter(|line| !line.trim_start().starts_with('#'))
         .any(|line| line.contains("skills-lock.json"));
     assert!(!is_lock_ignored, "skills-lock.json must stay tracked");
+}
+
+#[test]
+fn every_stack_can_update_all_of_its_skills_with_one_script() {
+    let temp = tempfile::tempdir().unwrap();
+    let dest = temp.path().join("app");
+    compose_stack("router", &dest);
+
+    let script_path = dest.join("scripts/skills/update-skills.sh");
+    assert!(script_path.is_file(), "the update script must reach the project");
+
+    // The script is run directly, so composition has to preserve its mode.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&script_path).unwrap().permissions().mode();
+        assert!(mode & 0o111 != 0, "update-skills.sh is not executable: {mode:o}");
+    }
+
+    // The scaffolder tells the project which of its skills install themselves,
+    // so the script drives their own CLI and `npx skills` does the rest.
+    let script = std::fs::read_to_string(&script_path).unwrap();
+    assert!(
+        script.contains(r#"SELF_INSTALLING_SKILLS="impeccable""#),
+        "the self-installing skills were not substituted: {script}"
+    );
+    assert!(script.contains("npx --yes skills update"), "{script}");
+    assert!(script.contains("impeccable"), "{script}");
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dest.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["scripts"]["skills:update"], "./scripts/skills/update-skills.sh");
 }
 
 #[test]

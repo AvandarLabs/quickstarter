@@ -2,6 +2,7 @@ import {
   IMPECCABLE_PROVIDER_NAMES,
   IMPECCABLE_SKILL_NAME,
   SKILL_AGENT_NAMES,
+  UPDATE_SKILLS_SCRIPT_PATH,
 } from "../constants";
 import type { CommandSpec, SkillSourceGroup } from "../skills.types";
 
@@ -10,7 +11,9 @@ import type { CommandSpec, SkillSourceGroup } from "../skills.types";
  *
  * Both tools are invoked through `npx` rather than installed as dependencies:
  * they manage agent tooling, not application code, and neither belongs in the
- * dependency graph of the app being built.
+ * dependency graph of the app being built. The update is the exception: it is
+ * a shell script of this project's own, because updating is the one job every
+ * generated project has to do the same way whatever language it is written in.
  */
 
 const NPX_COMMAND = "npx";
@@ -84,11 +87,18 @@ export function createImpeccableInstallCommand(): CommandSpec {
   };
 }
 
-/** Builds the command that refreshes an existing impeccable install. */
-export function createImpeccableUpdateCommand(): CommandSpec {
+/**
+ * Builds the command that updates every skill this project has.
+ *
+ * Nothing about the update is decided here: the script is the single
+ * implementation of "update every skill", so a project with no TypeScript
+ * tooling updates exactly the way this one does. It takes no arguments and
+ * finds the project root itself.
+ */
+export function createSkillsUpdateCommand(): CommandSpec {
   return {
-    label: `${IMPECCABLE_SKILL_NAME} update`,
-    command: NPX_COMMAND,
-    args: [...NPX_FLAGS, IMPECCABLE_SKILL_NAME, "update"],
+    label: "skills update",
+    command: UPDATE_SKILLS_SCRIPT_PATH,
+    args: [],
   };
 }

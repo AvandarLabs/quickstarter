@@ -2,6 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  IMPECCABLE_SKILL_NAME,
+  SELF_INSTALLING_SKILL_NAMES,
+} from "../constants";
 import { installSkills, updateSkills } from "./syncSkills";
 import type { CommandResult, CommandSpec } from "../skills.types";
 
@@ -13,6 +17,17 @@ const LOCK_JSON = JSON.stringify({
     "mantine-combobox": { source: "mantinedev/skills" },
   },
 });
+
+/**
+ * The impeccable install an install plans in this project, if any. The
+ * scaffolder decides which skills install themselves, so what an empty project
+ * expects follows that list rather than assuming impeccable is in it.
+ */
+const IMPECCABLE_INSTALL_LABELS = SELF_INSTALLING_SKILL_NAMES.includes(
+  IMPECCABLE_SKILL_NAME,
+)
+  ? ["impeccable install"]
+  : [];
 
 type RecordedRun = {
   specs: CommandSpec[];
@@ -69,7 +84,7 @@ describe("skills sync", () => {
       ).toEqual([
         "skills add mantinedev/skills",
         "skills add obra/superpowers",
-        "impeccable install",
+        ...IMPECCABLE_INSTALL_LABELS,
       ]);
     });
 
@@ -107,43 +122,54 @@ describe("skills sync", () => {
 
       expect(specs).toEqual([]);
     });
+
+    it("reports every command that failed without stopping", async () => {
+      const { specs, runner } = createRecordingRunner(1);
+
+      const result = await installSkills({ projectRootPath, runner });
+
+      expect(specs).toHaveLength(2 + IMPECCABLE_INSTALL_LABELS.length);
+      expect(result.failedLabels).toEqual([
+        "skills add mantinedev/skills",
+        "skills add obra/superpowers",
+        ...IMPECCABLE_INSTALL_LABELS,
+      ]);
+    });
   });
 
   describe("updateSkills", () => {
-    it("refreshes a complete project", async () => {
-      await installOnDisk(
-        "brainstorming",
-        "writing-plans",
-        "mantine-combobox",
-        "impeccable",
-      );
+    it("runs the update script and nothing else", async () => {
+      await installOnDisk("brainstorming");
       const { specs, runner } = createRecordingRunner();
 
       const result = await updateSkills({ projectRootPath, runner });
+
+      // Updating is the script's job in full: it drives both managers, so
+      // neither the lock nor what is on disk is consulted here.
+      expect(specs).toHaveLength(1);
+      expect(specs[0]?.command).toBe("./scripts/skills/update-skills.sh");
+      expect(specs[0]?.args).toEqual([]);
+      expect(result.didRun).toBe(true);
+    });
+
+    it("runs the script even in a project with nothing installed", async () => {
+      const { specs, runner } = createRecordingRunner();
+
+      await updateSkills({ projectRootPath, runner });
 
       expect(
         specs.map((spec) => {
           return spec.label;
         }),
-      ).toEqual([
-        "skills add mantinedev/skills",
-        "skills add obra/superpowers",
-        "impeccable update",
-      ]);
-      expect(result.didRun).toBe(true);
+      ).toEqual(["skills update"]);
     });
 
-    it("reports every command that failed without stopping", async () => {
-      const { specs, runner } = createRecordingRunner(1);
+    it("reports a failing script instead of swallowing it", async () => {
+      const { runner } = createRecordingRunner(1);
 
       const result = await updateSkills({ projectRootPath, runner });
 
-      expect(specs).toHaveLength(3);
-      expect(result.failedLabels).toEqual([
-        "skills add mantinedev/skills",
-        "skills add obra/superpowers",
-        "impeccable install",
-      ]);
+      expect(result.failedLabels).toEqual(["skills update"]);
     });
   });
 

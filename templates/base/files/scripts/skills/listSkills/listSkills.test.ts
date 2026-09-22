@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Acclimate } from "@avandar/acclimate";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  IMPECCABLE_SKILL_NAME,
+  SELF_INSTALLING_SKILL_NAMES,
+} from "../constants";
 import { listSkills } from "./listSkills";
 import type { CommandResult } from "../skills.types";
 
@@ -28,6 +32,15 @@ const LIST_OUTPUT = JSON.stringify([
     source: null,
   },
 ]);
+
+/**
+ * Whether the scaffolder gave this project impeccable. The listing only claims
+ * impeccable is missing for a project that has it, so the test for that row
+ * only applies to such a project.
+ */
+const USES_IMPECCABLE = SELF_INSTALLING_SKILL_NAMES.includes(
+  IMPECCABLE_SKILL_NAME,
+);
 
 function createRunner(result: Partial<CommandResult>) {
   return () => {
@@ -107,16 +120,19 @@ describe("listSkills", () => {
     expect(output).toContain("npx: not found");
   });
 
-  it("reports impeccable as missing in a project with nothing installed", async () => {
-    await rm(path.join(projectRootPath, "skills-lock.json"));
+  it.runIf(USES_IMPECCABLE)(
+    "reports impeccable as missing in a project with nothing installed",
+    async () => {
+      await rm(path.join(projectRootPath, "skills-lock.json"));
 
-    await listSkills({
-      projectRootPath,
-      runner: createRunner({ stdout: "[]" }),
-    });
+      await listSkills({
+        projectRootPath,
+        runner: createRunner({ stdout: "[]" }),
+      });
 
-    const output = loggedOutput();
-    expect(output).toContain("impeccable");
-    expect(output).toContain("not installed");
-  });
+      const output = loggedOutput();
+      expect(output).toContain("impeccable");
+      expect(output).toContain("not installed");
+    },
+  );
 });

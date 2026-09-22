@@ -10,7 +10,7 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::skills::commands::{self, SkillCommand};
+use crate::skills::commands::SkillCommand;
 use crate::skills::manifest;
 
 /// Runs one install command. Implemented by [`ProcessRunner`] in production
@@ -57,22 +57,22 @@ impl InstallOutcome {
     }
 }
 
-/// The commands that install the skills `capabilities` select.
+/// The skill specs `capabilities` select from the template's manifest.
 ///
-/// Planning is separate from running so the caller knows how many skills are
-/// coming before the first one starts, and says nothing at all when a template
-/// selects none.
+/// Selecting is separate from running so the caller can both tell the new
+/// project which of its skills install themselves (a token the templates
+/// substitute) and know how many skills are coming before the first one
+/// starts.
 ///
 /// A template repository with no manifest selects nothing, which is not an
 /// error: it is what lets a minimal template repository be scaffolded offline.
 /// A capability the manifest does not declare is an error, raised before any
 /// command runs, because it would otherwise install a silently smaller set.
-pub fn plan(template_root: &Path, capabilities: &[String]) -> Result<Vec<SkillCommand>> {
+pub fn select_specs(template_root: &Path, capabilities: &[String]) -> Result<Vec<String>> {
     let Some(manifest) = manifest::load(template_root)? else {
         return Ok(Vec::new());
     };
-    let specs = manifest.specs_for(capabilities)?;
-    Ok(commands::install_commands(&specs))
+    manifest.specs_for(capabilities)
 }
 
 /// Runs every planned command in `dest`, in order.
@@ -102,6 +102,7 @@ mod tests {
     use anyhow::bail;
 
     use super::*;
+    use crate::skills::commands;
 
     const MANIFEST: &str = r#"{
         "capabilities": {
@@ -168,7 +169,8 @@ mod tests {
         dest: &Path,
         runner: &dyn CommandRunner,
     ) -> Result<InstallOutcome> {
-        Ok(run_all(&plan(template_root, capabilities)?, dest, runner))
+        let specs = select_specs(template_root, capabilities)?;
+        Ok(run_all(&commands::install_commands(&specs), dest, runner))
     }
 
     #[test]

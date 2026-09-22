@@ -32,6 +32,10 @@ pub struct ComposePlan<'plan> {
     pub project_name: &'plan str,
     /// npm-safe package name (used for `package.json` `name`).
     pub package_name: &'plan str,
+    /// Tokens the caller computed rather than the module declaring them, such
+    /// as the self-installing skills the new project's own update script
+    /// drives. They win over a module's token of the same name.
+    pub extra_tokens: Tokens,
 }
 
 /// Composes the project described by `plan` into `dest`.
@@ -60,10 +64,11 @@ pub fn compose(plan: &ComposePlan, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Builds the token map: the module's declared tokens plus the built-in
-/// project and package names.
+/// Builds the token map: the module's declared tokens, the caller's extra
+/// tokens, plus the built-in project and package names.
 fn build_tokens(plan: &ComposePlan) -> Tokens {
     let mut tokens = plan.module.tokens.clone();
+    tokens.extend(plan.extra_tokens.clone());
     tokens.insert("PROJECT_NAME".to_string(), plan.project_name.to_string());
     tokens.insert("PACKAGE_NAME".to_string(), plan.package_name.to_string());
     tokens

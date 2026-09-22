@@ -59,14 +59,33 @@ pub fn install_commands(specs: &[String]) -> Vec<SkillCommand> {
     specs.iter().map(|spec| install_command(spec)).collect()
 }
 
+/// The npm package of every self-installing skill among `specs`, in order.
+///
+/// The generated project needs these names, not the specs: its own
+/// `scripts/skills/update-skills.sh` updates them through their own CLI, while
+/// `npx skills` updates everything else. A project that selects none gets an
+/// empty list and the script skips that step.
+pub fn self_installing_skill_names(specs: &[String]) -> Vec<String> {
+    specs
+        .iter()
+        .filter_map(|spec| self_installing_package(spec))
+        .map(str::to_string)
+        .collect()
+}
+
 /// Builds the one command that installs `spec`, routing the self-installing
 /// skills to their own installer.
 fn install_command(spec: &str) -> SkillCommand {
-    if spec == IMPECCABLE_SPEC {
-        impeccable_install_command()
-    } else {
-        skills_add_command(spec)
+    match self_installing_package(spec) {
+        Some(IMPECCABLE_PACKAGE_NAME) => impeccable_install_command(),
+        _ => skills_add_command(spec),
     }
+}
+
+/// The npm package that installs `spec` itself, for the specs `npx skills`
+/// does not manage.
+fn self_installing_package(spec: &str) -> Option<&'static str> {
+    (spec == IMPECCABLE_SPEC).then_some(IMPECCABLE_PACKAGE_NAME)
 }
 
 /// `npx skills add <spec>`, for the agent frontends this project supports.
@@ -177,6 +196,17 @@ mod tests {
             .map(|command| command.label.as_str())
             .collect();
         assert_eq!(labels, wanted);
+    }
+
+    #[test]
+    fn the_self_installing_skills_of_a_project_are_named_by_package() {
+        let names = self_installing_skill_names(&specs(&["owner/repo", IMPECCABLE_SPEC]));
+        assert_eq!(names, vec![IMPECCABLE_PACKAGE_NAME]);
+    }
+
+    #[test]
+    fn a_project_with_no_self_installing_skill_names_none() {
+        assert!(self_installing_skill_names(&specs(&["owner/repo"])).is_empty());
     }
 
     #[test]
