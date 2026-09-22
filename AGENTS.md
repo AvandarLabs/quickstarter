@@ -19,6 +19,15 @@ behavior. In short, a project is composed with three techniques:
 - **Token substitution** (`cli/src/compose/tokens.rs`): `{{TOKEN}}`s for files
   that are mostly shared but carry a few stack-specific lines.
 
+## The CLI surface
+
+Every answer has a flag and every flag is optional: what the user omits is
+asked for. `--yes` turns the questions off, making the answers with no default
+(`--name`, `--stack`) required. Keep those three pieces in step when you add an
+answer: the flag in `cli/src/cli/args.rs`, the resolution in
+`cli/src/cli/resolve.rs`, and the question in `cli/src/cli/prompts.rs`. An
+answer with a fixed set of choices gets a `Select` list, never free text.
+
 ## Where things go
 
 - A change that should affect **every** stack goes in `templates/base/`.

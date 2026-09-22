@@ -26,15 +26,42 @@ See [`docs/scaffolder.md`](docs/scaffolder.md) for the architecture.
 ./bootstrapNewRepo.sh
 ```
 
-It asks three questions:
+It asks for whatever you did not pass on the command line:
 
-1. **Project name** (required).
-2. **Where to create it** (defaults to the current directory).
-3. **Which stack**: TanStack Router (SPA) or TanStack Start (SSR + server
-   functions).
+1. **Project name** (`--name`, required).
+2. **Where to create it** (`--dir`, defaults to the current directory).
+3. **Which stack** (`--stack`): TanStack Router (SPA) or TanStack Start
+   (SSR + server functions). The list is arrow-key (or `j`/`k`) selectable.
 
 Then it clones the latest templates, composes your project, and writes only the
-finished files to `<location>/<name>`.
+finished files to `<dir>/<name>`.
+
+### Passing answers up front
+
+Every question has a flag, so you can answer some, all, or none of them:
+
+```sh
+# Answer one question up front, get asked the rest.
+./bootstrapNewRepo.sh --name "My App"
+
+# Answer everything and skip the interview entirely.
+./bootstrapNewRepo.sh --name "My App" --dir ~/src --stack router --yes
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `-n`, `--name <NAME>` | Project name. Required under `--yes`. |
+| `-d`, `--dir <DIR>` | Where to create it. Defaults to the current directory. |
+| `-s`, `--stack <STACK>` | Stack key: `router` or `start`. Required under `--yes`. |
+| `--repo <URL>` | Template repository to clone. |
+| `-y`, `--yes` | Never prompt. Also spelled `--no-input`. |
+
+`--yes` takes the options exactly as given: optional ones fall back to their
+defaults, and a missing required one is an error (naming every missing flag at
+once) rather than a question. Without `--yes`, nothing is required up front,
+because anything missing is simply asked for.
+
+Run `./bootstrapNewRepo.sh --help` for the full list.
 
 The Rust binary is a thin client: it clones this repository fresh on every run
 into a temporary directory (never into your project), so it always builds from

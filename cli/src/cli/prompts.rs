@@ -46,8 +46,9 @@ pub fn select_stack(modules: &[Module]) -> Result<&Module> {
 }
 
 /// Validates a project name for use as both a directory name and the basis of
-/// a package name.
-fn validate_project_name(input: &str) -> Result<(), String> {
+/// a package name. Shared with [`crate::cli::resolve`] so a name passed as
+/// `--name` is held to exactly the same rules as a typed one.
+pub fn validate_project_name(input: &str) -> Result<(), String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Err("Please enter a name.".to_string());

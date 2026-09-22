@@ -9,8 +9,11 @@
 # clones the latest template repository at runtime, so the templates are always
 # the newest ones too.
 #
-# Any arguments are passed straight through to the binary, e.g.:
+# Any arguments are passed straight through to the binary. Every question has a
+# flag, and anything you leave out is asked for; --yes turns the questions off:
+#   ./bootstrapNewRepo.sh --name "My App" --dir ~/src --stack router --yes
 #   ./bootstrapNewRepo.sh --repo https://github.com/AvandarLabs/quickstarter.git
+#   ./bootstrapNewRepo.sh --help
 set -euo pipefail
 
 SCRIPT_DIR=${0:A:h}

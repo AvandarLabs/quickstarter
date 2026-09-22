@@ -5,33 +5,23 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, bail};
 
 use crate::catalog;
-use crate::cli::prompts;
+use crate::cli::{Args, Resolver};
 use crate::compose::{self, ComposePlan};
 use crate::git_init;
 use crate::template::{self, ensure_git_available};
 
-/// Parsed invocation options.
-pub struct Args {
-    /// The template repository to clone.
-    pub repo_url: String,
-}
-
-impl Default for Args {
-    fn default() -> Self {
-        Args {
-            repo_url: template::DEFAULT_TEMPLATE_REPO.to_string(),
-        }
-    }
-}
-
-/// Runs the interactive scaffolder: prompt, fetch, compose, report.
-pub fn run(args: Args) -> Result<()> {
-    // Fail fast on a missing git before asking anything.
+/// Runs the scaffolder: resolve the answers (from flags, questions, or
+/// defaults), fetch, compose, report.
+pub fn run(args: &Args) -> Result<()> {
+    // Fail fast, before asking or fetching anything, on a missing git or on a
+    // `--yes` command that cannot be completed without questions.
     ensure_git_available()?;
+    args.ensure_answerable()?;
 
-    let project_name = prompts::project_name()?;
+    let resolver = Resolver::new(args.interactive());
+    let project_name = resolver.project_name(args.name.as_deref())?;
     let package_name = to_package_name(&project_name);
-    let location = prompts::location()?;
+    let location = resolver.location(args.dir.as_deref())?;
 
     // Resolve and validate the destination before any network work so an
     // existing directory fails immediately.
@@ -40,11 +30,13 @@ pub fn run(args: Args) -> Result<()> {
         bail!("{} already exists. Choose a different name or location.", dest.display());
     }
 
-    println!("Fetching the latest template from {}...", args.repo_url);
-    let checkout = template::fetch::clone(&args.repo_url)?;
+    println!("Fetching the latest template from {}...", args.repo);
+    let checkout = template::fetch::clone(&args.repo)?;
 
+    // The stack is resolved only after the clone, because the choices are
+    // whatever modules the template repository ships.
     let modules = catalog::discover_modules(&checkout.path().join("templates"))?;
-    let module = prompts::select_stack(&modules)?;
+    let module = resolver.stack(args.stack.as_deref(), &modules)?;
 
     let plan = ComposePlan {
         template_root: checkout.path(),
@@ -57,9 +49,16 @@ pub fn run(args: Args) -> Result<()> {
         std::fs::remove_dir_all(&dest).ok();
     })?;
 
-    // Best-effort: a git failure (for example, git not being fully configured)
-    // must not discard the project the user just successfully created.
-    if let Err(error) = git_init::init_and_commit(&dest) {
+    init_git_repository(&dest);
+    report_success(&project_name, &dest, module);
+    Ok(())
+}
+
+/// Turns the new project into a git repository. Best-effort: a git failure (for
+/// example, git not being fully configured) must not discard the project the
+/// user just successfully created.
+fn init_git_repository(dest: &std::path::Path) {
+    if let Err(error) = git_init::init_and_commit(dest) {
         eprintln!(
             "Warning: could not initialize a git repository in {}: {error:#}\n\
              The project was created successfully; run `git init` yourself to add \
@@ -67,9 +66,6 @@ pub fn run(args: Args) -> Result<()> {
             dest.display()
         );
     }
-
-    report_success(&project_name, &dest, module);
-    Ok(())
 }
 
 /// Converts a display name into an npm-safe package name: lowercase, with runs

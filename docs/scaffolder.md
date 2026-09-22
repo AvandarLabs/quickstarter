@@ -54,27 +54,67 @@ Choosing the right technique: whole-file differences use overlay, dependency
 differences use the merge, and small in-file differences use tokens. Never copy
 a shared file into a module just to change one line.
 
+## The command-line surface
+
+Every answer the scaffolder needs has a flag, and every flag is optional:
+anything the user leaves out is asked for. `--yes` (alias `--no-input`) removes
+the questions, at which point the options with no sensible default become
+required.
+
+| Answer | Flag | Missing under `--yes` |
+| --- | --- | --- |
+| Project name | `-n`, `--name` | error |
+| Location | `-d`, `--dir` | defaults to `.` |
+| Stack | `-s`, `--stack` | error |
+| Template repo | `--repo` | defaults to `DEFAULT_TEMPLATE_REPO` |
+
+Three modules implement that contract:
+
+- `cli/src/cli/args.rs` defines the flags (clap derive) and
+  `ensure_answerable`, which rejects an incomplete `--yes` command up front,
+  naming every missing flag at once.
+- `cli/src/cli/resolve.rs` resolves each answer from the same three sources in
+  order: the flag, a question, a default. It is the only place that knows
+  prompting can be off.
+- `cli/src/cli/prompts.rs` holds the questions themselves (`dialoguer`).
+  Enum-shaped answers use a `Select` list rather than free text, so the stack is
+  chosen with the arrow keys or `j`/`k`. A value passed as a flag is validated
+  by the same code that validates a typed one.
+
+Adding an answer means adding a field in `args.rs`, a resolver method, and
+(when it is not free text) a `Select` prompt. Adding a *required* one also
+means adding it to `ensure_answerable`.
+
 ## Runtime flow
 
 The binary is a thin client (`cli/src/app.rs`):
 
-1. Check `git` is available (fail fast).
-2. Prompt for project name and location; resolve and reject an existing target.
+1. Check `git` is available, and reject an incomplete `--yes` command. Both
+   happen before anything is asked, created, or fetched.
+2. Resolve the project name and location; resolve and reject an existing target.
 3. Clone the template repo shallowly into a temp dir (`template/fetch.rs`).
    Clone failures are classified as offline, access/config, or generic.
-4. Discover modules from the clone (`catalog/mod.rs`) and prompt for the stack.
+4. Discover modules from the clone (`catalog/mod.rs`) and resolve the stack.
+   This comes after the clone because the valid choices are whatever modules
+   the template repository ships; an unknown `--stack` is rejected here with
+   the real list.
 5. Compose into the target directory; on error, remove the partial output.
 6. Initialize the target as a git repository on `main` with a single initial
    commit (`git_init.rs`). The branch is named explicitly, because `git init`
-   otherwise falls back to `master` on a machine with no `init.defaultBranch`. This is best-effort: if git init or the commit fails (for
-   example, no configured identity), the run prints a warning and keeps the
-   project rather than discarding it. A generic fallback identity is used for
-   the commit only when the user has none configured.
+   otherwise falls back to `master` on a machine with no `init.defaultBranch`.
+   This is best-effort: if git init or the commit fails (for example, no
+   configured identity), the run prints a warning and keeps the project rather
+   than discarding it. A generic fallback identity is used for the commit only
+   when the user has none configured.
 7. Print next steps. The temp clone is deleted when the run ends, so the user
    only ever sees the finished project.
 
 Because the templates are fetched at runtime, an old binary still builds from
 the newest templates.
+
+`cli/tests/non_interactive_test.rs` drives the real binary through this whole
+flow with `--yes`, cloning a fixture template repo from a local path, so the
+non-interactive path is covered end to end without a network.
 
 ## Adding a new stack
 
@@ -131,6 +171,7 @@ self-installing skill means adding it to that constant and teaching
 ## Adding a new axis (future)
 
 Today there is a single axis (the stack). A second axis (for example a data
-layer) would be modeled as another module group and a second prompt, composed
-as an additional overlay + merge pass. The composition engine already supports
-stacking more than two layers; only the prompt/selection wiring would grow.
+layer) would be modeled as another module group, a second flag, and a second
+prompt, composed as an additional overlay + merge pass. The composition engine
+already supports stacking more than two layers; only the flag/prompt wiring
+would grow.
