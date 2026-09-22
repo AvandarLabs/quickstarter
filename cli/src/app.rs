@@ -1,6 +1,6 @@
 //! End-to-end orchestration of a scaffolding run.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
@@ -8,6 +8,7 @@ use crate::catalog;
 use crate::cli::{Args, Resolver};
 use crate::compose::{self, ComposePlan};
 use crate::git_init;
+use crate::skills::install::{self, InstallOutcome, ProcessRunner};
 use crate::template::{self, ensure_git_available};
 
 /// Runs the scaffolder: resolve the answers (from flags, questions, or
@@ -49,15 +50,54 @@ pub fn run(args: &Args) -> Result<()> {
         std::fs::remove_dir_all(&dest).ok();
     })?;
 
+    install_agent_skills(checkout.path(), module, &dest);
     init_git_repository(&dest);
     report_success(&project_name, &dest, module);
     Ok(())
 }
 
+/// Installs the agent skills the chosen stack calls for, inside the new
+/// project. Best-effort like the git initialization: a skill that will not
+/// install is reported with the command to run by hand, and never costs the
+/// user the project they just created.
+fn install_agent_skills(template_root: &Path, module: &catalog::Module, dest: &Path) {
+    let planned = match install::plan(template_root, &module.capabilities) {
+        Ok(planned) => planned,
+        Err(error) => {
+            eprintln!("Warning: no agent skills were installed: {error:#}");
+            return;
+        }
+    };
+    if planned.is_empty() {
+        return;
+    }
+
+    println!("\nInstalling {} agent skills...", planned.len());
+    report_failed_skills(&install::run_all(&planned, dest, &ProcessRunner), dest);
+}
+
+/// Prints the commands the user can run themselves for every skill that failed
+/// to install.
+fn report_failed_skills(outcome: &InstallOutcome, dest: &Path) {
+    if outcome.failed.is_empty() {
+        return;
+    }
+    eprintln!(
+        "\nWarning: {} of {} agent skills could not be installed. The project is \
+         ready; run these yourself in {}:",
+        outcome.failed.len(),
+        outcome.attempted(),
+        dest.display()
+    );
+    for command in &outcome.failed {
+        eprintln!("  {}", command.shell_line());
+    }
+}
+
 /// Turns the new project into a git repository. Best-effort: a git failure (for
 /// example, git not being fully configured) must not discard the project the
 /// user just successfully created.
-fn init_git_repository(dest: &std::path::Path) {
+fn init_git_repository(dest: &Path) {
     if let Err(error) = git_init::init_and_commit(dest) {
         eprintln!(
             "Warning: could not initialize a git repository in {}: {error:#}\n\
@@ -111,7 +151,7 @@ fn home_dir() -> Result<PathBuf> {
         .context("HOME is not set, so '~' cannot be expanded")
 }
 
-fn report_success(project_name: &str, dest: &std::path::Path, module: &catalog::Module) {
+fn report_success(project_name: &str, dest: &Path, module: &catalog::Module) {
     let dev_url = module
         .tokens
         .get("DEV_URL")

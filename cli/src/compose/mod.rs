@@ -5,13 +5,12 @@
 //! 2. deep-merge the base and module `package.json` fragments;
 //! 3. substitute `{{TOKEN}}`s (project name plus the module's own tokens).
 //!
-//! A fourth step seeds `skills-lock.json` with the curated agent skills a
-//! generated project should receive. It runs after substitution because the
-//! lock is generated data, not an authored template file.
+//! Composition writes authored files only. The agent skills a generated
+//! project gets are installed afterwards, by the scaffolder running
+//! `npx skills` inside the finished project (see `crate::skills`).
 
 pub mod overlay;
 pub mod package_json;
-pub mod skills_lock;
 pub mod tokens;
 
 use std::path::Path;
@@ -58,9 +57,6 @@ pub fn compose(plan: &ComposePlan, dest: &Path) -> Result<()> {
 
     let tokens = build_tokens(plan);
     tokens::substitute_in_tree(dest, &tokens).context("substituting tokens")?;
-
-    skills_lock::write_produced_lock(plan.template_root, dest)
-        .context("writing skills-lock.json")?;
     Ok(())
 }
 

@@ -25,6 +25,10 @@ pub struct Module {
     /// Sort order for the selection prompt (ascending).
     #[serde(default)]
     pub order: i64,
+    /// Capability tags this stack has, naming the skill lists a generated
+    /// project receives from `skills-manifest.json` on top of the global one.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
     /// Token values this module contributes to substitution.
     #[serde(default)]
     pub tokens: Tokens,
@@ -95,6 +99,33 @@ mod tests {
         let keys: Vec<&str> = modules.iter().map(|module| module.key.as_str()).collect();
         assert_eq!(keys, vec!["router", "start"]);
         assert_eq!(modules[0].tokens.get("X").unwrap(), "y");
+    }
+
+    #[test]
+    fn reads_the_capabilities_a_module_declares() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("modules/start");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("module.json"),
+            r#"{ "key": "start", "name": "Start",
+                 "capabilities": ["typescript", "tanstack-start"] }"#,
+        )
+        .unwrap();
+
+        let module = Module::load(&dir).unwrap();
+
+        assert_eq!(module.capabilities, vec!["typescript", "tanstack-start"]);
+    }
+
+    #[test]
+    fn a_module_that_declares_no_capabilities_has_none() {
+        let temp = tempfile::tempdir().unwrap();
+        write_module(temp.path(), "router", "Router", 1);
+
+        let module = Module::load(&temp.path().join("modules/router")).unwrap();
+
+        assert!(module.capabilities.is_empty());
     }
 
     #[test]

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use quickstarter::catalog::{self, Module};
 use quickstarter::compose::{self, ComposePlan};
+use quickstarter::skills::manifest;
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -97,41 +98,46 @@ fn start_stack_composes_cleanly() {
 }
 
 #[test]
-fn every_stack_gets_the_produced_skills_lock() {
+fn composition_writes_no_skills_and_leaves_that_to_the_scaffolder() {
     let temp = tempfile::tempdir().unwrap();
     let dest = temp.path().join("app");
     compose_stack("router", &dest);
 
-    let lock: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(dest.join("skills-lock.json")).unwrap())
-            .unwrap();
-    let skills = lock["skills"].as_object().unwrap();
+    // The skills are installed by `npx skills` after composition, inside the
+    // finished project, so composition itself must ship neither the lock that
+    // tool writes nor the directories it fills.
+    assert!(!dest.join("skills-lock.json").exists());
+    assert!(!dest.join(".agents").exists());
+    assert!(!dest.join(".claude/skills").exists());
+}
 
-    // The produced bucket, minus the skills that are not `npx skills`-managed.
-    let manifest: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(repo_root().join("skills-manifest.json")).unwrap())
-            .unwrap();
-    let produced: Vec<&str> = manifest["produced"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|name| name.as_str().unwrap())
-        .filter(|name| !quickstarter::compose::skills_lock::CLI_MANAGED_SKILLS.contains(name))
-        .collect();
+#[test]
+fn every_stack_selects_the_global_and_typescript_skills_and_no_rust_one() {
+    let root = repo_root();
+    let manifest = manifest::load(&root).unwrap().expect("the real manifest");
+    let global = manifest.specs_for(&[]).unwrap();
 
-    assert_eq!(skills.len(), produced.len());
-    for name in produced {
-        assert!(skills.contains_key(name), "missing {name} from the produced lock");
-        assert!(skills[name]["source"].is_string(), "{name} has no source");
+    for module in catalog::discover_modules(&root.join("templates")).unwrap() {
+        let specs = manifest.specs_for(&module.capabilities).unwrap();
+
+        for spec in &global {
+            assert!(specs.contains(spec), "{}: missing global skill {spec}", module.key);
+        }
+        assert!(
+            specs.iter().any(|spec| spec.ends_with("typescript-magician")),
+            "{}: no TypeScript skill selected",
+            module.key
+        );
+
+        // Rust skills belong to this repository, never to a generated project.
+        for spec in &specs {
+            assert!(
+                !spec.starts_with("actionbook/") && !spec.starts_with("leonardomso/"),
+                "{}: rust skill leaked into a project: {spec}",
+                module.key
+            );
+        }
     }
-
-    // Rust skills stay in quickstarter; a generated app must never see one.
-    for name in skills.keys() {
-        assert!(!name.starts_with("rust-"), "rust skill leaked into a project: {name}");
-    }
-
-    // `impeccable` is installed by its own CLI, so it must not be locked.
-    assert!(!skills.contains_key("impeccable"));
 }
 
 #[test]
@@ -147,8 +153,9 @@ fn every_stack_gets_the_skills_tooling() {
         serde_json::from_str(&std::fs::read_to_string(dest.join("package.json")).unwrap()).unwrap();
     let scripts = &manifest["scripts"];
 
-    // `pnpm install` is what installs the skills, so the wiring that makes
-    // that happen has to survive composition.
+    // The scaffolder installs the skills once, at creation. Restoring them in
+    // a later clone is the project's own job, so the wiring that does it has
+    // to survive composition.
     assert_eq!(scripts["skills"], "tsx scripts/skills/SkillsCli.ts");
     assert_eq!(scripts["skills:install"], "tsx scripts/skills/SkillsCli.ts install");
     assert_eq!(scripts["skills:update"], "tsx scripts/skills/SkillsCli.ts update");
@@ -168,8 +175,9 @@ fn every_stack_gets_the_skills_tooling() {
     assert!(gitignore.contains(".agents/"));
     assert!(gitignore.contains(".claude/skills/"));
 
-    // The lock itself is the one skills file a generated project tracks, so it
-    // must not be ignored. Comments mentioning it do not count.
+    // `npx skills` writes the lock into the new project as it installs, and it
+    // is the one skills file the project tracks, so it must not be ignored.
+    // Comments mentioning it do not count.
     let is_lock_ignored = gitignore
         .lines()
         .filter(|line| !line.trim_start().starts_with('#'))

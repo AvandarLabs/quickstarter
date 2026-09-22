@@ -60,6 +60,8 @@ npx skills remove <name>
 Both commands update `skills-lock.json`. Commit that change: it is what every
 other clone and CI checkout installs from.
 
-`skills-lock.json` is seeded by the scaffolder from quickstarter's `produced`
-skill set, so a fresh project starts with the curated list rather than an
-empty one.
+The lock was not written by hand. The scaffolder that created this project ran
+`npx skills add` for each skill its capability manifest selects for a project
+of this shape, and those installs wrote `skills-lock.json`. That is why a fresh
+project starts with a curated list rather than an empty one; from here on the
+lock is this repository's own, and the commands above are what change it.

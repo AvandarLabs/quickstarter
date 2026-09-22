@@ -12,10 +12,15 @@
 //! - deep-merge for `package.json` dependency fragments,
 //! - `{{TOKEN}}` substitution for files that are mostly shared but carry a
 //!   few stack-specific lines.
+//!
+//! The agent skills a project gets are not composed but installed: [`skills`]
+//! runs `npx skills` inside the finished project, for the capabilities its
+//! stack module declares.
 
 pub mod app;
 pub mod catalog;
 pub mod cli;
 pub mod compose;
 pub mod git_init;
+pub mod skills;
 pub mod template;

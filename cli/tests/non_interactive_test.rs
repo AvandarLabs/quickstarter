@@ -71,6 +71,25 @@ fn flags_alone_scaffold_a_project_without_any_questions() {
 }
 
 #[test]
+fn a_template_without_a_skills_manifest_installs_no_skills() {
+    let sandbox = sandbox();
+    let output = run_cli(
+        &sandbox,
+        &["--yes", "--name", "My App", "--dir", sandbox.target_dir.to_str().unwrap(), "--stack",
+          "router"],
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    // The fixture template ships no `skills-manifest.json`, so the run selects
+    // nothing and never reaches `npx`. That is what keeps this suite, which
+    // drives the real binary, free of the network.
+    let project: &Path = &sandbox.target_dir.join("My App");
+    assert!(!project.join(".agents").exists());
+    assert!(!project.join("skills-lock.json").exists());
+    assert!(!stderr(&output).contains("Warning"), "{}", stderr(&output));
+}
+
+#[test]
 fn yes_without_the_required_flags_fails_before_doing_any_work() {
     let sandbox = sandbox();
     let output = run_cli(&sandbox, &["--yes"]);

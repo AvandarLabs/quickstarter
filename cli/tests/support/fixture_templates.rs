@@ -2,6 +2,10 @@
 //!
 //! Sharing one fixture between the composition test and the end-to-end CLI
 //! test keeps them describing the same template layout.
+//!
+//! The fixture deliberately ships no `skills-manifest.json`: a template
+//! repository that declares no skills installs none, which is what lets the
+//! end-to-end test drive the real binary without ever running `npx`.
 
 use std::path::Path;
 

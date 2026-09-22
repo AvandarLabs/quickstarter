@@ -70,9 +70,12 @@ incremental, so an unchanged tree costs a fraction of a second), which means a
 change under `cli/src` can never be silently ignored. It requires `git` and an
 internet connection; it will tell you if either is missing.
 
-The generated project also arrives with a `skills-lock.json` holding the
-curated agent skills a new project should have. Its first `pnpm install`
-installs them; see the skills section of
+The generated project also arrives with its agent skills already installed.
+Which ones it gets depends on the stack you chose: the scaffolder keeps a
+manifest of skills keyed by capability, and runs `npx skills` for the ones your
+project's capabilities select, right after composing it. The `skills-lock.json`
+those installs write is part of the project's first commit, so a later clone
+restores the same set with `pnpm install`. See the skills section of
 [`docs/scaffolder.md`](docs/scaffolder.md).
 
 To point at a different template repository:

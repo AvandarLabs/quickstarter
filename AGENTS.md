@@ -38,30 +38,31 @@ answer with a fixed set of choices gets a `Select` list, never free text.
 
 ## Skills
 
-Whenever you install a new skill in this repo (`skills add ...`), you MUST, in
-the same change, classify it in [`skills-manifest.json`](skills-manifest.json)
-by deciding where it belongs:
+Two skill sets live here and they are independent of each other.
 
-- **`quickstarterDev`** - only useful for developing the quickstarter CLI (for
-  example anything Rust-related). Never installed into generated projects.
-- **`produced`** - shipped to every generated project. The `produced` bucket is
-  live: composition writes it into the new project's `skills-lock.json`, so
-  adding a name here means the next generated project installs that skill.
-- **both** - list the skill in *both* arrays when it applies to developing
-  quickstarter and to generated projects.
+- **This repo's own skills** (`.agents/skills`, tracked in
+  `skills-lock.json`) are local tooling for people working on the scaffolder.
+  Install one with `skills add ...` and commit the lock. No manifest change is
+  needed, and nothing about generated projects changes.
+- **A generated project's skills** come from
+  [`skills-manifest.json`](skills-manifest.json), which is keyed by capability
+  tag. Adding a skill for new projects means adding its full source spec (the
+  string `npx skills add` receives: `owner/repo`, or `owner/repo/path/to/skill`
+  when the SKILL.md is not at the repository root) to the right capability. Put
+  it in `global` when every project should have it, otherwise in the capability
+  that implies it (`typescript`, `tanstack-router`, ...). A new capability is a
+  new key here plus the `capabilities` list of each
+  `templates/modules/<key>/module.json` that declares it.
 
-Every installed skill must appear in at least one bucket.
-`cli/tests/skills_manifest_test.rs` fails the build if a skill is installed but
-unclassified, if the manifest names a skill that is not installed, or if any
-Rust-related skill (`rust-*` or `coding-guidelines`) is placed in `produced`.
-Removing a skill means removing it from the manifest in the same change.
+The manifest is live: the scaffolder installs the selected specs with `npx
+skills add` inside the new project, so a spec added here is installed by the
+next run. `pbakaus/impeccable` is the one spec not handed to `npx skills`,
+because it installs itself through its own CLI; another self-installing skill
+means teaching `cli/src/skills/commands.rs` about it.
 
-A produced skill must also be installed here, because the generated lock copies
-its source and hash from this repo's `skills-lock.json`. A name in `produced`
-with no lock entry fails composition rather than silently shipping less.
-
-`impeccable` is `produced` but excluded from the generated lock: it installs
-itself through its own CLI. See the skills section of
+`cli/tests/skills_manifest_test.rs` guards the manifest's invariants: every
+spec well formed and unique, a non-empty `global`, and every capability a
+module declares present in the manifest. See the skills section of
 [`docs/scaffolder.md`](docs/scaffolder.md).
 
 ## Rust conventions

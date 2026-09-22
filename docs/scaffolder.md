@@ -23,7 +23,7 @@ templates/
     └── <stack>/
         ├── files/        # files this stack adds or overrides
         ├── package.json  # dependency fragment merged onto the base
-        └── module.json   # metadata: name, description, order, tokens
+        └── module.json   # metadata: name, order, capabilities, tokens
 ```
 
 - **base** is the single source of truth for everything shared. Change Mantine,
@@ -99,14 +99,18 @@ The binary is a thin client (`cli/src/app.rs`):
    the template repository ships; an unknown `--stack` is rejected here with
    the real list.
 5. Compose into the target directory; on error, remove the partial output.
-6. Initialize the target as a git repository on `main` with a single initial
+6. Install the agent skills the chosen module's capabilities select, by running
+   `npx skills add` once per spec inside the new project (`skills/install.rs`).
+   This is best-effort: a failure prints a warning naming the commands to
+   re-run and keeps the project.
+7. Initialize the target as a git repository on `main` with a single initial
    commit (`git_init.rs`). The branch is named explicitly, because `git init`
    otherwise falls back to `master` on a machine with no `init.defaultBranch`.
    This is best-effort: if git init or the commit fails (for example, no
    configured identity), the run prints a warning and keeps the project rather
    than discarding it. A generic fallback identity is used for the commit only
    when the user has none configured.
-7. Print next steps. The temp clone is deleted when the run ends, so the user
+8. Print next steps. The temp clone is deleted when the run ends, so the user
    only ever sees the finished project.
 
 Because the templates are fetched at runtime, an old binary still builds from
@@ -121,52 +125,92 @@ non-interactive path is covered end to end without a network.
 1. Create `templates/modules/<key>/` with:
    - `files/` containing the files that differ for the stack;
    - `package.json` with only the extra dependencies/scripts;
-   - `module.json` with `key`, `name`, `description`, `order`, and any `tokens`
-     referenced by base files.
+   - `module.json` with `key`, `name`, `description`, `order`, the
+     `capabilities` the stack has, and any `tokens` referenced by base files.
 2. Provide a value for every `{{TOKEN}}` that base files use, or the
    `real_templates_test` will fail on an unfilled token.
-3. Run `cargo test`. Module discovery is data-driven, so no Rust changes are
+3. Use only capabilities that exist in
+   [`skills-manifest.json`](../skills-manifest.json). An unknown one fails
+   `skills_manifest_test`, because it would silently install no skills.
+4. Run `cargo test`. Module discovery is data-driven, so no Rust changes are
    needed to make the new stack selectable.
 
-## Skills: quickstarter-dev vs produced repos
+## Skills: capability tags, not repo types
 
-There are two distinct skill sets, and the split is data, not convention.
+A generated project has no single type, so the skills it gets are not a single
+list. It has a **set of capability tags**, and it receives the union of the
+lists those tags name in [`skills-manifest.json`](../skills-manifest.json):
 
-- **Quickstarter-dev skills** live in this repo (`.agents/skills`, tracked via
-  `skills-lock.json`) so engineers working on the scaffolder share the same
-  tooling. This set includes **all Rust-related skills**, because the CLI is
-  written in Rust: `rust-skills`, `coding-guidelines` (Rust code style, despite
-  the generic name), the `rust-*` tools, and Rust toolchain skills without the
-  prefix (`cargo-workflows`, `fuzzing`).
+- `global` is the special tag every generated project gets: the skills that
+  apply whatever the stack is (planning, debugging, code review, and so on).
+- Every other tag is a capability a stack module declares in its `module.json`.
+  `router` declares `["typescript", "tanstack-router"]` and `start` declares
+  `["typescript", "tanstack-start"]`, so both inherit the TypeScript skills
+  while each keeps room for skills only it should have.
+- `rust` is in the manifest as data only: no module declares it yet. It is
+  there because a Rust CLI project type is coming, and a capability that
+  nothing claims costs nothing.
 
-- **Produced-repo skills** are the curated set a *generated* project receives.
+Each entry is a **source spec** handed to `npx skills add` verbatim, so it has
+to resolve to exactly one skill: `owner/repo` when the repository's SKILL.md is
+at its root, `owner/repo/path/to/skill` otherwise.
 
-The authoritative split lives in
-[`skills-manifest.json`](../skills-manifest.json), which has a
-`quickstarterDev` and a `produced` bucket; a skill in both means it applies to
-both. `cli/tests/skills_manifest_test.rs` fails the build if a skill is
-installed but unclassified, if the manifest names a skill that is not
-installed, or if a Rust-related skill leaks into `produced`.
+### Adding a capability
 
-### How produced skills reach a generated project
+A capability is nothing more than a key in the manifest plus the modules that
+declare it. Add the key with its list of specs, then add its name to the
+`capabilities` array of every `templates/modules/<key>/module.json` that should
+get those skills. No Rust changes are involved.
 
-Composition writes a `skills-lock.json` into the new project
-(`cli/src/compose/skills_lock.rs`): the `produced` bucket intersected with this
-repo's own lock, entries copied verbatim so the project pins the same sources.
-`cli/tests/real_templates_test.rs` asserts the result covers the whole produced
-set and that no Rust skill leaks through.
+### This repo's lock is unrelated
 
-The scaffolder itself installs nothing. The generated project's
-`postinstall` calls its own `scripts/skills` CLI, so the first `pnpm install`
-materializes `.agents/skills` and the per-frontend links from the lock. That
-keeps scaffolding fast and offline-capable, and it means a teammate cloning the
-project later goes through exactly the same path.
+`skills-lock.json` here records the skills installed in **this** checkout, so
+that engineers working on the scaffolder share the same tooling (all the
+Rust-related ones, because the CLI is written in Rust). It is completely
+decoupled from the manifest: `npx skills add` or `npx skills remove` in this
+repo changes nothing about generated projects, and a spec in the manifest does
+not have to be installed here at all. The two files answer different questions:
+the lock says what this checkout has, the manifest says what a new project
+gets.
 
-`impeccable` is the one exception and is deliberately excluded from the
-generated lock (`CLI_MANAGED_SKILLS`): it ships its own `impeccable` CLI, which
-the project's skills wrapper drives separately. Adding another
-self-installing skill means adding it to that constant and teaching
-`scripts/skills` about it.
+### How the skills reach a generated project
+
+After composition and before the git init, the scaffolder runs one command per
+selected spec inside the new project directory:
+
+```sh
+npx -y skills add <spec> --agent claude-code cursor opencode codex -y
+```
+
+`npx skills` does the rest: it writes `.agents/skills`, the `.claude/skills`
+symlinks, and the new project's own `skills-lock.json`. That lock is why the
+generated project's skills tooling (`scripts/skills`, the `postinstall` hook,
+`pnpm skills:*`) keeps working unchanged: a teammate cloning the project later
+restores exactly the same set with `pnpm install`. Think "node_modules
+installed on creation", not "bundled".
+
+The code lives in `cli/src/skills/`: `manifest.rs` selects the specs for a set
+of capabilities, deduplicated; `commands.rs` builds the commands; `install.rs`
+runs them. Installing is best-effort like `git init`: a failure prints a
+warning naming the commands to re-run, and never discards the project the user
+just created.
+
+`pbakaus/impeccable` is listed under `global` but is the one spec the
+scaffolder does not hand to `npx skills`. It ships its own installer, so it is
+run as:
+
+```sh
+npx -y impeccable install \
+  --providers=claude,cursor,opencode,codex --scope=project
+```
+
+Adding another self-installing skill means teaching
+`cli/src/skills/commands.rs` about it.
+
+`cli/tests/skills_manifest_test.rs` guards the manifest itself rather than
+comparing it against what is installed: every spec is well formed, no spec is
+duplicated inside or across capabilities, `global` exists and is non-empty, and
+every capability a module declares exists in the manifest.
 
 ## Adding a new axis (future)
 
