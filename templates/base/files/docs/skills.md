@@ -19,19 +19,18 @@ Skills come from two tools that know nothing about each other:
 One wrapper and one script cover both, so there is a single place to ask what
 is installed and a single place to bring it up to date:
 
-| Command               | What it does                                                  |
-| --------------------- | ------------------------------------------------------------- |
-| `pnpm skills`         | Merged listing of every skill, flagging any that are missing. |
-| `pnpm skills:install` | Install the locked skills that are not on disk yet.           |
-| `pnpm skills:update`  | Update every skill, from both managers.                       |
+- `{{SKILLS_LIST_COMMAND}}`: merged listing of every skill, flagging any that are missing.
+- `{{SKILLS_INSTALL_COMMAND}}`: install the locked skills that are not on disk yet.
+- `{{SKILLS_UPDATE_COMMAND}}`: update every skill, from both managers.
 
-`pnpm skills` and `pnpm skills:install` run `scripts/skills/SkillsCli.ts`.
-`pnpm skills:update` runs `scripts/skills/update-skills.sh`, which is a plain
-shell script on purpose: updating skills is the one thing every project does
-the same way whatever it is written in, so it does not go through the
-TypeScript tooling. The script updates everything in the lock with `npx skills
-update`, then updates each self-installing skill through its own CLI. That list
-is at the top of the script, written when the project was scaffolded:
+The first two run this project's own skills tooling under `scripts/skills`.
+`{{SKILLS_UPDATE_COMMAND}}` runs `scripts/skills/update-skills.sh`, which is a
+plain shell script on purpose: updating skills is the one thing every project
+does the same way whatever it is written in, so it does not go through the
+language's own tooling. The script updates everything in the lock with
+`npx skills update`, then updates each self-installing skill through its own
+CLI. That list is at the top of the script, written when the project was
+scaffolded:
 
 ```sh
 SELF_INSTALLING_SKILLS="impeccable"
@@ -48,17 +47,20 @@ tool changes.
 together they are around 14MB and 600+ files of vendored content, most of it
 impeccable's four copies of itself.
 
-The lock is therefore the manifest of what this project wants, and
-`pnpm install` is what makes the working tree match it:
+The lock is therefore the manifest of what this project wants, and installing
+is what makes the working tree match it:
 
-- `postinstall` runs `SkillsCli install`, which adds whatever the lock asks for
-  that is not already on disk and leaves everything else untouched. A complete
-  project makes no network calls at all, so adding a dependency stays fast.
-- Install and update are separate for the same reason pnpm keeps them separate:
-  `pnpm install` materializes what is locked without upgrading anything, and
-  `pnpm skills:update` is the deliberate "go get the latest" step.
-- `CI=true` or `SKIP_SKILLS_INSTALL=1` turns the restore off. No agent frontend
-  runs in CI, so the network cost there buys nothing.
+- {{SKILLS_RESTORE_NOTE}}
+  Installing adds whatever the lock asks for that is not already on disk and
+  leaves everything else untouched. A complete project makes no network calls
+  at all, so it stays fast.
+- Install and update are separate for the same reason a package manager keeps
+  them separate: `{{SKILLS_INSTALL_COMMAND}}` materializes what is locked without
+  upgrading anything, and `{{SKILLS_UPDATE_COMMAND}}` is the deliberate "go get
+  the latest" step.
+- Where the restore runs automatically, `CI=true` or `SKIP_SKILLS_INSTALL=1`
+  turns it off. No agent frontend runs in CI, so the network cost there buys
+  nothing.
 
 ## Changing the skill set
 
@@ -73,7 +75,7 @@ Both commands update `skills-lock.json`. Commit that change: it is what every
 other clone and CI checkout installs from.
 
 The lock was not written by hand. The scaffolder that created this project ran
-`npx skills add` for each skill its capability manifest selects for a project
-of this shape, and those installs wrote `skills-lock.json`. That is why a fresh
-project starts with a curated list rather than an empty one; from here on the
-lock is this repository's own, and the commands above are what change it.
+`npx skills add` for each skill its manifest selects for a project of this
+shape, and those installs wrote `skills-lock.json`. That is why a fresh project
+starts with a curated list rather than an empty one; from here on the lock is
+this repository's own, and the commands above are what change it.

@@ -10,8 +10,11 @@
 # the newest ones too.
 #
 # Any arguments are passed straight through to the binary. Every question has a
-# flag, and anything you leave out is asked for; --yes turns the questions off:
-#   ./bootstrapNewRepo.sh --name "My App" --dir ~/src --stack router --yes
+# flag, and anything you leave out is asked for; --yes turns the questions off.
+# A project has one project type and any number of capabilities:
+#   ./bootstrapNewRepo.sh --name "My App" --dir ~/src \
+#     --project-type typescript:web --capability tanstack-router --yes
+#   ./bootstrapNewRepo.sh --name "My Tool" --project-type rust:cli --yes
 #   ./bootstrapNewRepo.sh --repo https://github.com/AvandarLabs/quickstarter.git
 #   ./bootstrapNewRepo.sh --help
 set -euo pipefail

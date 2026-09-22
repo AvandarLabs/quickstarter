@@ -1,11 +1,19 @@
 {
   "comment": [
-    "Which agent skills a generated project receives, keyed by capability tag.",
+    "Which agent skills a generated project receives, keyed by tag.",
     "",
-    "A generated project does not have a single type: it has a set of",
-    "capabilities. Each stack module declares its own in",
-    "templates/modules/<key>/module.json, and the scaffolder installs the",
-    "'global' list plus the list for every capability that module declares.",
+    "A generated project carries tags of two types. It has exactly one project",
+    "type ('<language>:<product>', which decides its build system and its",
+    "starting files) and any number of capabilities (a library or framework on",
+    "top). A project receives the 'global' list, its project type's list, and",
+    "the list of every capability it declares.",
+    "",
+    "The tags themselves are defined in templates/: each",
+    "templates/project-types/<slug>/project-type.json and",
+    "templates/capabilities/<slug>/capability.json declares its key, what it",
+    "is, and for a capability which project types or languages it fits and",
+    "which capabilities it excludes. This file only says which skills each tag",
+    "brings, and cli/tests/skills_manifest_test.rs checks the two agree.",
     "",
     "Every entry is a source spec handed to `npx skills add` verbatim, so it",
     "must resolve to exactly one skill: 'owner/repo' when the repository's",
@@ -16,34 +24,32 @@
     "`npx skills add` or `npx skills remove` here changes nothing about the",
     "repositories quickstarter produces.",
     "",
-    "'rust' is data only for now: no module declares it yet.",
-    "",
     "pbakaus/impeccable is the one entry the scaffolder does not hand to",
     "`npx skills`, because impeccable ships its own installer. See the skills",
     "section of docs/scaffolder.md."
   ],
-  "capabilities": {
-    "global": [
-      "AvandarLabs/avandar/agent-skills/public-skills/skills/avandar-code-review",
-      "jpsyx/agent-skills/skills/repo-product-manager",
-      "mcollina/skills/skills/documentation",
-      "obra/superpowers/skills/brainstorming",
-      "obra/superpowers/skills/dispatching-parallel-agents",
-      "obra/superpowers/skills/executing-plans",
-      "obra/superpowers/skills/finishing-a-development-branch",
-      "obra/superpowers/skills/receiving-code-review",
-      "obra/superpowers/skills/requesting-code-review",
-      "obra/superpowers/skills/subagent-driven-development",
-      "obra/superpowers/skills/systematic-debugging",
-      "obra/superpowers/skills/test-driven-development",
-      "obra/superpowers/skills/using-git-worktrees",
-      "obra/superpowers/skills/using-superpowers",
-      "obra/superpowers/skills/verification-before-completion",
-      "obra/superpowers/skills/writing-plans",
-      "obra/superpowers/skills/writing-skills",
-      "pbakaus/impeccable"
-    ],
-    "typescript": [
+  "global": [
+    "AvandarLabs/avandar/agent-skills/public-skills/skills/avandar-code-review",
+    "jpsyx/agent-skills/skills/repo-product-manager",
+    "mcollina/skills/skills/documentation",
+    "obra/superpowers/skills/brainstorming",
+    "obra/superpowers/skills/dispatching-parallel-agents",
+    "obra/superpowers/skills/executing-plans",
+    "obra/superpowers/skills/finishing-a-development-branch",
+    "obra/superpowers/skills/receiving-code-review",
+    "obra/superpowers/skills/requesting-code-review",
+    "obra/superpowers/skills/subagent-driven-development",
+    "obra/superpowers/skills/systematic-debugging",
+    "obra/superpowers/skills/test-driven-development",
+    "obra/superpowers/skills/using-git-worktrees",
+    "obra/superpowers/skills/using-superpowers",
+    "obra/superpowers/skills/verification-before-completion",
+    "obra/superpowers/skills/writing-plans",
+    "obra/superpowers/skills/writing-skills",
+    "pbakaus/impeccable"
+  ],
+  "projectTypes": {
+    "typescript:web": [
       "AvandarLabs/avandar/agent-skills/public-skills/skills/ava-model-creation",
       "currents-dev/playwright-best-practices-skill",
       "lackeyjb/playwright-skill/skills/playwright-skill",
@@ -51,9 +57,7 @@
       "mantinedev/skills/skills/mantine-custom-components",
       "mcollina/skills/skills/typescript-magician"
     ],
-    "tanstack-router": [],
-    "tanstack-start": [],
-    "rust": [
+    "rust:cli": [
       "actionbook/rust-skills/skills/coding-guidelines",
       "actionbook/rust-skills/skills/domain-cli",
       "actionbook/rust-skills/skills/rust-call-graph",
@@ -64,7 +68,12 @@
       "actionbook/rust-skills/skills/rust-router",
       "actionbook/rust-skills/skills/rust-symbol-analyzer",
       "actionbook/rust-skills/skills/rust-trait-explorer",
+      "actionbook/rust-skills/skills/unsafe-checker",
       "leonardomso/rust-skills"
     ]
+  },
+  "capabilities": {
+    "tanstack-router": [],
+    "tanstack-start": []
   }
 }

@@ -23,7 +23,7 @@
 - Helper functions take the scoping id **from the row expression**, not
   from the JWT or a client value.
 - `UPDATE` policies must include `WITH CHECK` constraining the **new** row
-  the same way as `USING` constrains the old row — otherwise users can
+  the same way as `USING` constrains the old row: otherwise users can
   rewrite a row into a scope they don't own.
 
 ## Tests

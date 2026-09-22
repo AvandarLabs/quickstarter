@@ -1,11 +1,13 @@
 {
-  "key": "router",
+  "key": "tanstack-router",
   "name": "TanStack Router (SPA)",
   "description": "Vite + TanStack Router. Client-side single-page app, no server.",
   "order": 1,
-  "capabilities": [
-    "typescript",
-    "tanstack-router"
+  "projectTypes": [
+    "typescript:web"
+  ],
+  "conflictsWith": [
+    "tanstack-start"
   ],
   "tokens": {
     "STACK_SUMMARY": "- This project is a single-page application (SPA) built with TypeScript, React,\n  and Mantine.\n- Routing is handled by **TanStack Router** (`@tanstack/react-router`). We do\n  **not** use TanStack Start. There is no server-side rendering, no server\n  functions, and no server entry point. Everything runs client-side.",

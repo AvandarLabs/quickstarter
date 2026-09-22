@@ -61,6 +61,7 @@ describe("createImpeccableInstallCommand", () => {
       "-y",
       "impeccable",
       "install",
+      "--yes",
       "--providers=claude,cursor,opencode,codex",
       "--scope=project",
     ]);

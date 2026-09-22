@@ -57,7 +57,8 @@ impl InstallOutcome {
     }
 }
 
-/// The skill specs `capabilities` select from the template's manifest.
+/// The skill specs a project type and its capabilities select from the
+/// template's manifest.
 ///
 /// Selecting is separate from running so the caller can both tell the new
 /// project which of its skills install themselves (a token the templates
@@ -66,13 +67,17 @@ impl InstallOutcome {
 ///
 /// A template repository with no manifest selects nothing, which is not an
 /// error: it is what lets a minimal template repository be scaffolded offline.
-/// A capability the manifest does not declare is an error, raised before any
-/// command runs, because it would otherwise install a silently smaller set.
-pub fn select_specs(template_root: &Path, capabilities: &[String]) -> Result<Vec<String>> {
+/// A tag the manifest does not declare is an error, raised before any command
+/// runs, because it would otherwise install a silently smaller set.
+pub fn select_specs(
+    template_root: &Path,
+    project_type: &str,
+    capabilities: &[String],
+) -> Result<Vec<String>> {
     let Some(manifest) = manifest::load(template_root)? else {
         return Ok(Vec::new());
     };
-    manifest.specs_for(capabilities)
+    manifest.specs_for(project_type, capabilities)
 }
 
 /// Runs every planned command in `dest`, in order.
@@ -105,10 +110,11 @@ mod tests {
     use crate::skills::commands;
 
     const MANIFEST: &str = r#"{
-        "capabilities": {
-            "global": ["obra/superpowers/skills/brainstorming", "pbakaus/impeccable"],
-            "typescript": ["mcollina/skills/skills/typescript-magician"]
-        }
+        "global": ["obra/superpowers/skills/brainstorming", "pbakaus/impeccable"],
+        "projectTypes": {
+            "typescript:web": ["mcollina/skills/skills/typescript-magician"]
+        },
+        "capabilities": { "tanstack-router": [] }
     }"#;
 
     /// Records what it was asked to run instead of spawning anything, so the
@@ -158,18 +164,17 @@ mod tests {
         temp
     }
 
-    fn typescript() -> Vec<String> {
-        vec!["typescript".to_string()]
-    }
+    /// The project type every test here installs for.
+    const WEB: &str = "typescript:web";
 
     /// Plans and runs in one step, the way `app.rs` does.
     fn install(
         template_root: &Path,
-        capabilities: &[String],
+        project_type: &str,
         dest: &Path,
         runner: &dyn CommandRunner,
     ) -> Result<InstallOutcome> {
-        let specs = select_specs(template_root, capabilities)?;
+        let specs = select_specs(template_root, project_type, &[])?;
         Ok(run_all(&commands::install_commands(&specs), dest, runner))
     }
 
@@ -179,7 +184,7 @@ mod tests {
         let dest = PathBuf::from("/tmp/some-project");
         let runner = FakeRunner::default();
 
-        let outcome = install(template.path(), &typescript(), &dest, &runner).unwrap();
+        let outcome = install(template.path(), WEB, &dest, &runner).unwrap();
 
         assert_eq!(
             runner.labels(),
@@ -205,8 +210,7 @@ mod tests {
         let template = template_with_manifest();
         let runner = FakeRunner::failing_on("pbakaus/impeccable");
 
-        let outcome =
-            install(template.path(), &typescript(), Path::new("/tmp/p"), &runner).unwrap();
+        let outcome = install(template.path(), WEB, Path::new("/tmp/p"), &runner).unwrap();
 
         assert_eq!(runner.labels().len(), 3);
         assert_eq!(outcome.installed, 2);
@@ -223,8 +227,7 @@ mod tests {
         let template = tempfile::tempdir().unwrap();
         let runner = FakeRunner::default();
 
-        let outcome =
-            install(template.path(), &typescript(), Path::new("/tmp/p"), &runner).unwrap();
+        let outcome = install(template.path(), WEB, Path::new("/tmp/p"), &runner).unwrap();
 
         assert!(runner.labels().is_empty());
         assert_eq!(outcome.installed, 0);
@@ -232,19 +235,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_capability_fails_the_whole_plan() {
+    fn an_unknown_tag_fails_the_whole_plan() {
         let template = template_with_manifest();
         let runner = FakeRunner::default();
 
-        let error = install(
-            template.path(),
-            &["svelte".to_string()],
-            Path::new("/tmp/p"),
-            &runner,
-        )
-        .unwrap_err();
+        let error =
+            install(template.path(), "python:web", Path::new("/tmp/p"), &runner).unwrap_err();
 
-        assert!(error.to_string().contains("svelte"), "{error}");
+        assert!(error.to_string().contains("python:web"), "{error}");
         assert!(runner.labels().is_empty());
     }
 }

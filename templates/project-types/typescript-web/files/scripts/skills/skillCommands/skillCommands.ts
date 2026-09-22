@@ -70,8 +70,8 @@ export function createSkillsAddCommand(
 /**
  * Builds the command that installs impeccable into this project.
  *
- * Passing both `--providers` and `--scope` is what keeps the installer
- * non-interactive.
+ * `--yes`, `--providers` and `--scope` together are what keep the installer
+ * non-interactive: without `--yes` it stops to ask about its design hook.
  */
 export function createImpeccableInstallCommand(): CommandSpec {
   return {
@@ -81,6 +81,9 @@ export function createImpeccableInstallCommand(): CommandSpec {
       ...NPX_FLAGS,
       IMPECCABLE_SKILL_NAME,
       "install",
+      // Impeccable's own flag, not npx's: without it the installer stops to
+      // ask whether to install its design hook.
+      "--yes",
       `--providers=${IMPECCABLE_PROVIDER_NAMES.join(",")}`,
       "--scope=project",
     ],

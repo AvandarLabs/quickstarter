@@ -120,6 +120,10 @@ fn impeccable_install_command() -> SkillCommand {
             NPX_YES_FLAG.to_string(),
             IMPECCABLE_PACKAGE_NAME.to_string(),
             "install".to_string(),
+            // Impeccable's own flag, not npx's: without it the installer stops
+            // to ask whether to install its design hook, in the middle of a
+            // scaffolding run that is supposed to ask nothing.
+            "--yes".to_string(),
             format!("--providers={}", IMPECCABLE_PROVIDER_NAMES.join(",")),
             "--scope=project".to_string(),
         ],
@@ -179,6 +183,7 @@ mod tests {
                 "-y",
                 "impeccable",
                 "install",
+                "--yes",
                 "--providers=claude,cursor,opencode,codex",
                 "--scope=project",
             ])

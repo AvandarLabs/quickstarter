@@ -1,0 +1,17 @@
+{
+  "key": "typescript:web",
+  "name": "TypeScript web app",
+  "description": "Vite + React + Mantine, in TypeScript, with oxlint, oxfmt, and vitest.",
+  "language": "typescript",
+  "order": 1,
+  "tokens": {
+    "PROJECT_TYPE_RULES": "- [See our TypeScript rules](docs/rules/typescript.md)\n- [See our SQL rules](docs/rules/sql.md)\n- [See our styling and UI rules](docs/rules/styling.md)\n- [See our routing rules](docs/rules/routing.md)",
+    "BUILD_TEST_BLOCK": "```sh\npnpm install     # install dependencies, plus any missing agent skill\npnpm dev         # start the Vite dev server with hot reload\npnpm build       # type-check (tsc -b) and build for production\npnpm preview     # preview the production build locally\npnpm type-check  # run the TypeScript compiler without emitting\npnpm test        # run the test suite with vitest\npnpm lint        # lint with oxlint\npnpm format      # format with oxfmt\npnpm check       # format check, lint, build, and test: run before pushing\n```",
+    "PROJECT_TYPE_IGNORES": "# Node\nnpm-debug.log*\nyarn-debug.log*\npnpm-debug.log*\n\nnode_modules\ndist\ndist-ssr\n*.local\n\n# TanStack Router plugin cache\n.tanstack\n\n# TanStack Start build output\n.output\n.nitro\n\n# Playwright\n/playwright-report/\n/test-results/\n.playwright-mcp/",
+    "SKILLS_LIST_COMMAND": "pnpm skills",
+    "SKILLS_INSTALL_COMMAND": "pnpm skills:install",
+    "SKILLS_UPDATE_COMMAND": "pnpm skills:update",
+    "SKILLS_RESTORE_NOTE": "A fresh clone needs nothing extra: `pnpm install` restores the locked skills.",
+    "NEXT_STEPS": "pnpm install\npnpm dev        # then open the dev server it prints"
+  }
+}

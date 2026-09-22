@@ -1,11 +1,13 @@
 {
-  "key": "start",
+  "key": "tanstack-start",
   "name": "TanStack Start (SSR + server functions)",
   "description": "Vite + TanStack Start. Server-side rendering and server functions.",
   "order": 2,
-  "capabilities": [
-    "typescript",
-    "tanstack-start"
+  "projectTypes": [
+    "typescript:web"
+  ],
+  "conflictsWith": [
+    "tanstack-router"
   ],
   "tokens": {
     "STACK_SUMMARY": "- This project is a server-rendered React application built with TypeScript,\n  React, and Mantine.\n- Routing and the server runtime are handled by **TanStack Start**\n  (`@tanstack/react-start`) on top of TanStack Router\n  (`@tanstack/react-router`). Server-side rendering and server functions\n  (`createServerFn`) are available. The HTML document is defined in\n  `src/routes/__root.tsx`; there is no `index.html`.",

@@ -1,40 +1,65 @@
 # Agent Rules
 
-This repository is a **project scaffolder**, not the front-end app itself. It
-has two parts: the Rust CLI under `cli/`, and the template layers under
-`templates/`. The rules that a *generated* project follows live in
-`templates/base/files/AGENTS.md`; the rules below are for working on the
-scaffolder.
+This repository is a **project scaffolder**, not one of the projects it
+builds. It has two parts: the Rust CLI under `cli/`, and the template layers
+under `templates/`. The rules that a *generated* project follows live in
+`templates/base/files/AGENTS.md` and its `docs/rules/`; the rules below are for
+working on the scaffolder.
 
 ## Architecture
 
 Read [`docs/scaffolder.md`](docs/scaffolder.md) before changing composition
-behavior. In short, a project is composed with three techniques:
+behavior.
+
+A generated repo carries **tags** of two types: exactly one **project type**
+(`typescript:web`, `rust:cli`), which decides the build system, the starting
+files, and the language's skills, plus any number of **capabilities**
+(`tanstack-router`, `tanstack-start`) layered on top. Which combinations are
+legal is declared by the tags themselves (`projectTypes`, `languages`,
+`conflictsWith`) and read by `cli/src/catalog/`, never hardcoded. Capabilities
+that exclude one another form a choice group, and a group that fits the chosen
+project type is a required choice.
+
+A project is composed with three techniques:
 
 - **Overlay** (`cli/src/compose/overlay.rs`): copy `base/files`, then the
-  chosen module's `files` on top. Later layers win, so a module owns a whole
-  file (its `vite.config.ts`) that differs from the base.
-- **Deep-merge** (`cli/src/compose/package_json.rs`): the base `package.json`
-  plus each module's `package.json` fragment.
+  project type's `files`, then each chosen capability's `files`. Later layers
+  win, so a capability owns a whole file (its `vite.config.ts`) that its
+  project type also ships.
+- **Deep-merge** (`cli/src/compose/package_json.rs`): the project type's
+  `package.json` plus each capability's fragment. A project type with no
+  `package.json` (the Rust one) composes without one rather than failing.
 - **Token substitution** (`cli/src/compose/tokens.rs`): `{{TOKEN}}`s for files
-  that are mostly shared but carry a few stack-specific lines.
+  that are mostly shared but carry a few tag-specific lines. Every UTF-8 text
+  file is processed, extensionless ones (`.gitignore`, `justfile`) included.
 
 ## The CLI surface
 
 Every answer has a flag and every flag is optional: what the user omits is
 asked for. `--yes` turns the questions off, making the answers with no default
-(`--name`, `--stack`) required. Keep those three pieces in step when you add an
-answer: the flag in `cli/src/cli/args.rs`, the resolution in
-`cli/src/cli/resolve.rs`, and the question in `cli/src/cli/prompts.rs`. An
-answer with a fixed set of choices gets a `Select` list, never free text.
+(`--name`, `--project-type`) required and turning an unmade required capability
+choice into an error. `-c, --capability` repeats and also takes a
+comma-separated list. Keep those three pieces in step when you add an answer:
+the flag in `cli/src/cli/args.rs`, the resolution in `cli/src/cli/resolve.rs`,
+and the question in `cli/src/cli/prompts.rs`. An answer with a fixed set of
+choices gets a `Select` (a `MultiSelect` when several may be ticked), never
+free text.
 
 ## Where things go
 
-- A change that should affect **every** stack goes in `templates/base/`.
-- A change specific to one stack goes in that `templates/modules/<stack>/`.
-- Never duplicate a shared file into a module just to tweak one line. Add a
-  `{{TOKEN}}` in the base file and give it a value in each module's
-  `module.json`.
+- A change that should affect **every** project, whatever its language, goes
+  in `templates/base/`. Keep that layer small: it holds `AGENTS.md`, the
+  `README.md`, `.gitignore`, `docs/skills.md`, and the skills update script.
+- A change specific to one language and product goes in
+  `templates/project-types/<slug>/`. Deep language rules belong in its
+  `files/docs/rules/`, not in a token value.
+- A change specific to one library goes in `templates/capabilities/<slug>/`,
+  along with the compatibility it declares (`projectTypes`, `languages`,
+  `conflictsWith`). Declare a conflict on both sides.
+- Never duplicate a shared file into a project type or a capability just to
+  tweak one line. Add a `{{TOKEN}}` in the shared file and give it a value in
+  the `project-type.json` or `capability.json` of whichever tag knows the
+  answer.
 
 ## Skills
 
@@ -45,14 +70,15 @@ Two skill sets live here and they are independent of each other.
   Install one with `skills add ...` and commit the lock. No manifest change is
   needed, and nothing about generated projects changes.
 - **A generated project's skills** come from
-  [`skills-manifest.json`](skills-manifest.json), which is keyed by capability
-  tag. Adding a skill for new projects means adding its full source spec (the
-  string `npx skills add` receives: `owner/repo`, or `owner/repo/path/to/skill`
-  when the SKILL.md is not at the repository root) to the right capability. Put
-  it in `global` when every project should have it, otherwise in the capability
-  that implies it (`typescript`, `tanstack-router`, ...). A new capability is a
-  new key here plus the `capabilities` list of each
-  `templates/modules/<key>/module.json` that declares it.
+  [`skills-manifest.json`](skills-manifest.json), which is keyed by tag in
+  three sections: `global` (every project), `projectTypes` (keyed by project
+  type key), and `capabilities` (keyed by capability key). A project gets the
+  union of the three lists that apply to it. Adding a skill for new projects
+  means adding its full source spec (the string `npx skills add` receives:
+  `owner/repo`, or `owner/repo/path/to/skill` when the SKILL.md is not at the
+  repository root) to the right section. A new tag needs an entry here, even
+  an empty one, and its compatibility is declared in `templates/` rather than
+  here: the manifest only says what each tag installs.
 
 The manifest is live: the scaffolder installs the selected specs with `npx
 skills add` inside the new project, so a spec added here is installed by the
@@ -62,12 +88,12 @@ which of its skills are self-installing through the `SELF_INSTALLING_SKILLS`
 token, so its own `scripts/skills/update-skills.sh` can update them the same
 way. Another self-installing skill means teaching
 `cli/src/skills/commands.rs` about it and that script how to update it. A new
-stack wires that one script to its own task runner (`pnpm skills:update` on the
-TypeScript stacks, `just skills-update` on a Rust one).
+project type wires that one script to its own task runner (`pnpm skills:update`
+on `typescript:web`, `just skills-update` on `rust:cli`).
 
 `cli/tests/skills_manifest_test.rs` guards the manifest's invariants: every
-spec well formed and unique, a non-empty `global`, and every capability a
-module declares present in the manifest. See the skills section of
+spec well formed and unique, a non-empty `global`, and the tags the manifest
+names being exactly the tags `templates/` declares. See the skills section of
 [`docs/scaffolder.md`](docs/scaffolder.md).
 
 ## Rust conventions
@@ -93,5 +119,6 @@ templates end-to-end. Run `cargo test` and `cargo clippy` before finishing.
 
 ## Keeping docs current
 
-When you add or change a stack module, a composition technique, or the CLI's
-behavior, update `docs/scaffolder.md` and this file in the same change.
+When you add or change a project type, a capability, a composition technique,
+or the CLI's behavior, update `docs/scaffolder.md` and this file in the same
+change.

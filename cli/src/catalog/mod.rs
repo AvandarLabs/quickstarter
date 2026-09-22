@@ -1,137 +1,87 @@
-//! The stack catalog: the set of modules a user can choose between.
+//! The tag catalog: what a generated project can be built from.
 //!
-//! Modules are discovered from the cloned template repo at runtime rather than
-//! hardcoded in the binary. Adding a new stack is therefore a matter of adding
-//! a `templates/modules/<key>/` folder with a `module.json`; an older binary
-//! picks it up automatically because it always clones the latest repo.
+//! A project carries tags of two types. It has exactly one **project type**
+//! (`typescript:web`, `rust:cli`), which decides its build system and the
+//! files it starts from, and any number of **capabilities**
+//! (`tanstack-router`), each a library or framework layered on top. A
+//! capability says which project types and languages it fits and which
+//! capabilities it excludes, so the valid combinations are data rather than
+//! code.
+//!
+//! Both are discovered from the cloned template repository at runtime rather
+//! than hardcoded in the binary, so adding either is a matter of adding a
+//! folder under `templates/`: an older binary picks it up because it always
+//! clones the latest repo.
+
+pub mod capability;
+pub mod compatibility;
+pub mod discovery;
+pub mod groups;
+pub mod project_type;
+pub mod selection;
+#[cfg(test)]
+pub mod test_tags;
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
-use serde::Deserialize;
+use anyhow::Result;
 
-use crate::compose::tokens::Tokens;
+pub use capability::Capability;
+pub use groups::ChoiceGroup;
+pub use project_type::ProjectType;
+pub use selection::Selection;
 
-/// A single selectable stack module, parsed from its `module.json`.
-#[derive(Debug, Clone, Deserialize)]
-pub struct Module {
-    /// The directory name under `templates/modules/`, e.g. `"router"`.
-    pub key: String,
-    /// Human-readable name shown in the selection prompt.
-    pub name: String,
-    /// One-line description shown alongside the name.
-    #[serde(default)]
-    pub description: String,
-    /// Sort order for the selection prompt (ascending).
-    #[serde(default)]
-    pub order: i64,
-    /// Capability tags this stack has, naming the skill lists a generated
-    /// project receives from `skills-manifest.json` on top of the global one.
-    #[serde(default)]
-    pub capabilities: Vec<String>,
-    /// Token values this module contributes to substitution.
-    #[serde(default)]
-    pub tokens: Tokens,
+/// Every tag a template repository offers.
+pub struct Catalog {
+    /// The project types, sorted by `order` then `name`.
+    pub project_types: Vec<ProjectType>,
+    /// The capabilities, sorted by `order` then `name`, whatever project type
+    /// each fits.
+    pub capabilities: Vec<Capability>,
 }
 
-impl Module {
-    /// Loads a module's metadata from `<module_dir>/module.json`.
-    pub fn load(module_dir: &Path) -> Result<Module> {
-        let manifest_path = module_dir.join("module.json");
-        let text = std::fs::read_to_string(&manifest_path)
-            .with_context(|| format!("reading {}", manifest_path.display()))?;
-        let module: Module = serde_json::from_str(&text)
-            .with_context(|| format!("parsing {}", manifest_path.display()))?;
-        Ok(module)
-    }
-}
-
-/// Discovers all modules under `<templates_root>/modules`, sorted by `order`
-/// then `name`. Errors if the directory is missing or contains no modules.
-pub fn discover_modules(templates_root: &Path) -> Result<Vec<Module>> {
-    let modules_dir = templates_root.join("modules");
-    let mut modules = Vec::new();
-
-    for entry in std::fs::read_dir(&modules_dir)
-        .with_context(|| format!("reading modules dir {}", modules_dir.display()))?
-    {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        if entry.path().join("module.json").exists() {
-            modules.push(Module::load(&entry.path())?);
-        }
-    }
-
-    if modules.is_empty() {
-        anyhow::bail!(
-            "no template modules found under {}. The template repository may be malformed.",
-            modules_dir.display()
-        );
-    }
-
-    modules.sort_by(|left, right| left.order.cmp(&right.order).then(left.name.cmp(&right.name)));
-    Ok(modules)
+/// Discovers every tag under `templates_root`.
+///
+/// A repository with no project type is an error, because nothing can be built
+/// from it; one with no capabilities is fine.
+pub fn discover(templates_root: &Path) -> Result<Catalog> {
+    Ok(Catalog {
+        project_types: project_type::discover(templates_root)?,
+        capabilities: capability::discover(templates_root)?,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn write_module(root: &Path, key: &str, name: &str, order: i64) {
-        let dir = root.join("modules").join(key);
-        std::fs::create_dir_all(&dir).unwrap();
-        let manifest = format!(
-            r#"{{ "key": "{key}", "name": "{name}", "order": {order}, "tokens": {{ "X": "y" }} }}"#
-        );
-        std::fs::write(dir.join("module.json"), manifest).unwrap();
-    }
-
     #[test]
-    fn discovers_and_sorts_modules_by_order() {
+    fn discovers_both_kinds_of_tag() {
         let temp = tempfile::tempdir().unwrap();
-        write_module(temp.path(), "start", "Start", 2);
-        write_module(temp.path(), "router", "Router", 1);
-
-        let modules = discover_modules(temp.path()).unwrap();
-
-        let keys: Vec<&str> = modules.iter().map(|module| module.key.as_str()).collect();
-        assert_eq!(keys, vec!["router", "start"]);
-        assert_eq!(modules[0].tokens.get("X").unwrap(), "y");
-    }
-
-    #[test]
-    fn reads_the_capabilities_a_module_declares() {
-        let temp = tempfile::tempdir().unwrap();
-        let dir = temp.path().join("modules/start");
-        std::fs::create_dir_all(&dir).unwrap();
+        let project_type_dir = temp.path().join("project-types/rust-cli");
+        std::fs::create_dir_all(&project_type_dir).unwrap();
         std::fs::write(
-            dir.join("module.json"),
-            r#"{ "key": "start", "name": "Start",
-                 "capabilities": ["typescript", "tanstack-start"] }"#,
+            project_type_dir.join("project-type.json"),
+            r#"{ "key": "rust:cli", "name": "Rust CLI", "language": "rust" }"#,
+        )
+        .unwrap();
+        let capability_dir = temp.path().join("capabilities/clap");
+        std::fs::create_dir_all(&capability_dir).unwrap();
+        std::fs::write(
+            capability_dir.join("capability.json"),
+            r#"{ "key": "clap", "name": "clap" }"#,
         )
         .unwrap();
 
-        let module = Module::load(&dir).unwrap();
+        let catalog = discover(temp.path()).unwrap();
 
-        assert_eq!(module.capabilities, vec!["typescript", "tanstack-start"]);
+        assert_eq!(catalog.project_types.len(), 1);
+        assert_eq!(catalog.capabilities.len(), 1);
     }
 
     #[test]
-    fn a_module_that_declares_no_capabilities_has_none() {
+    fn a_repository_with_no_project_type_is_malformed() {
         let temp = tempfile::tempdir().unwrap();
-        write_module(temp.path(), "router", "Router", 1);
-
-        let module = Module::load(&temp.path().join("modules/router")).unwrap();
-
-        assert!(module.capabilities.is_empty());
-    }
-
-    #[test]
-    fn errors_when_no_modules_present() {
-        let temp = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(temp.path().join("modules")).unwrap();
-        assert!(discover_modules(temp.path()).is_err());
+        assert!(discover(temp.path()).is_err());
     }
 }

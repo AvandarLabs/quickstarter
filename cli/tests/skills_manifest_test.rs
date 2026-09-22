@@ -4,8 +4,9 @@
 //! The manifest is data the scaffolder hands to `npx skills add` verbatim, so
 //! a malformed or duplicated entry only shows up as a failed install inside a
 //! user's brand-new project. These tests fail the build instead: every spec is
-//! well formed, no spec is listed twice, `global` is present and non-empty,
-//! and every capability a stack module declares exists here. The manifest has
+//! well formed, no spec is listed twice under one tag or repeated from the
+//! global list, `global` is present and non-empty, and the tags the manifest
+//! knows about are exactly the tags `templates/` declares. The manifest has
 //! nothing to do with this repository's own `skills-lock.json`, so nothing
 //! here compares the two.
 
@@ -13,7 +14,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use quickstarter::catalog;
-use quickstarter::skills::manifest::{self, GLOBAL_CAPABILITY, MANIFEST_FILE_NAME};
+use quickstarter::skills::manifest::{self, GLOBAL_SECTION, MANIFEST_FILE_NAME};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -22,26 +23,40 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn manifest_json() -> String {
-    std::fs::read_to_string(repo_root().join(MANIFEST_FILE_NAME)).expect("reading the manifest")
+fn manifest_json() -> serde_json::Value {
+    let text = std::fs::read_to_string(repo_root().join(MANIFEST_FILE_NAME))
+        .expect("reading the manifest");
+    serde_json::from_str(&text).expect("the manifest is JSON")
 }
 
-/// The manifest as capability name to its specs, in the order authored.
-fn capabilities() -> Vec<(String, Vec<String>)> {
-    let document: serde_json::Value = serde_json::from_str(&manifest_json()).unwrap();
-    document["capabilities"]
-        .as_object()
-        .expect("the manifest has a 'capabilities' object")
+/// The specs of the `global` section, in the order authored.
+fn global_specs() -> Vec<String> {
+    specs_of(&manifest_json()[GLOBAL_SECTION], GLOBAL_SECTION)
+}
+
+/// Every tag section entry as (tag, specs), in the order authored, taking the
+/// project types and the capabilities together: both are tags, and the shape
+/// rules are the same for both.
+fn tag_specs() -> Vec<(String, Vec<String>)> {
+    let document = manifest_json();
+    let mut entries = vec![(GLOBAL_SECTION.to_string(), global_specs())];
+    for section in ["projectTypes", "capabilities"] {
+        let tags = document[section]
+            .as_object()
+            .unwrap_or_else(|| panic!("the manifest has a '{section}' object"));
+        for (tag, specs) in tags {
+            entries.push((tag.clone(), specs_of(specs, tag)));
+        }
+    }
+    entries
+}
+
+fn specs_of(value: &serde_json::Value, tag: &str) -> Vec<String> {
+    value
+        .as_array()
+        .unwrap_or_else(|| panic!("'{tag}' is not a list of specs"))
         .iter()
-        .map(|(name, specs)| {
-            let specs = specs
-                .as_array()
-                .unwrap_or_else(|| panic!("capability '{name}' is not a list"))
-                .iter()
-                .map(|spec| spec.as_str().expect("a spec is a string").to_string())
-                .collect();
-            (name.clone(), specs)
-        })
+        .map(|spec| spec.as_str().expect("a spec is a string").to_string())
         .collect()
 }
 
@@ -70,11 +85,11 @@ fn malformation(spec: &str) -> Option<&'static str> {
 
 #[test]
 fn every_spec_is_a_well_formed_source_spec() {
-    for (capability, specs) in capabilities() {
+    for (tag, specs) in tag_specs() {
         for spec in specs {
             assert!(
                 malformation(&spec).is_none(),
-                "'{spec}' in '{capability}' {}",
+                "'{spec}' in '{tag}' {}",
                 malformation(&spec).unwrap()
             );
         }
@@ -99,44 +114,86 @@ fn the_shape_check_rejects_a_malformed_spec() {
 }
 
 #[test]
-fn no_spec_is_listed_twice_in_one_capability_or_in_two() {
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    for (capability, specs) in capabilities() {
-        for spec in specs {
-            assert!(
-                seen.insert(spec.clone()),
-                "'{spec}' is listed twice ('{capability}')"
-            );
+fn no_tag_lists_a_spec_twice() {
+    for (tag, specs) in tag_specs() {
+        let mut seen: BTreeSet<&String> = BTreeSet::new();
+        for spec in &specs {
+            assert!(seen.insert(spec), "'{tag}' lists '{spec}' twice");
         }
     }
 }
 
 #[test]
-fn the_global_capability_exists_and_is_not_empty() {
-    let global = capabilities()
-        .into_iter()
-        .find(|(name, _)| name == GLOBAL_CAPABILITY)
-        .map(|(_, specs)| specs)
-        .unwrap_or_else(|| panic!("the manifest declares no '{GLOBAL_CAPABILITY}' capability"));
-    assert!(!global.is_empty(), "'{GLOBAL_CAPABILITY}' installs nothing");
+fn no_tag_repeats_a_skill_the_global_list_already_installs() {
+    // Two project types may legitimately share a skill; repeating one that
+    // every project already gets is only noise.
+    let global: BTreeSet<String> = global_specs().into_iter().collect();
+    for (tag, specs) in tag_specs() {
+        if tag == GLOBAL_SECTION {
+            continue;
+        }
+        for spec in specs {
+            assert!(!global.contains(&spec), "'{tag}' repeats the global skill '{spec}'");
+        }
+    }
 }
 
 #[test]
-fn every_capability_a_module_declares_exists_in_the_manifest() {
-    let root = repo_root();
-    let manifest = manifest::parse(&manifest_json()).unwrap();
-    let declared: BTreeSet<&str> = manifest.capability_names().collect();
+fn the_global_section_exists_and_is_not_empty() {
+    assert!(!global_specs().is_empty(), "'{GLOBAL_SECTION}' installs nothing");
+}
 
-    for module in catalog::discover_modules(&root.join("templates")).unwrap() {
-        for capability in &module.capabilities {
-            assert!(
-                declared.contains(capability.as_str()),
-                "module '{}' declares '{capability}', which the manifest does not: {declared:?}",
-                module.key
-            );
-        }
-        // The same check the scaffolder itself makes, so a module that selects
+#[test]
+fn every_tag_the_templates_declare_has_an_entry() {
+    let root = repo_root();
+    let manifest = manifest::load(&root).unwrap().expect("the real manifest");
+    let catalog = catalog::discover(&root.join("templates")).unwrap();
+
+    let project_types: BTreeSet<&str> = manifest.project_type_names().collect();
+    for project_type in &catalog.project_types {
+        assert!(
+            project_types.contains(project_type.key.as_str()),
+            "the templates declare the project type '{}', which the manifest does not: {:?}",
+            project_type.key,
+            project_types
+        );
+        // The same check the scaffolder itself makes, so a tag that selects
         // nothing installable fails here rather than in a user's project.
-        manifest.specs_for(&module.capabilities).unwrap();
+        manifest.specs_for(&project_type.key, &[]).unwrap();
+    }
+
+    let capabilities: BTreeSet<&str> = manifest.capability_names().collect();
+    for capability in &catalog.capabilities {
+        assert!(
+            capabilities.contains(capability.key.as_str()),
+            "the templates declare the capability '{}', which the manifest does not: {:?}",
+            capability.key,
+            capabilities
+        );
+    }
+}
+
+#[test]
+fn every_tag_the_manifest_names_is_one_the_templates_declare() {
+    let root = repo_root();
+    let manifest = manifest::load(&root).unwrap().expect("the real manifest");
+    let catalog = catalog::discover(&root.join("templates")).unwrap();
+
+    let project_types: BTreeSet<&str> =
+        catalog.project_types.iter().map(|one| one.key.as_str()).collect();
+    for name in manifest.project_type_names() {
+        assert!(
+            project_types.contains(name),
+            "the manifest names the project type '{name}', which no template declares"
+        );
+    }
+
+    let capabilities: BTreeSet<&str> =
+        catalog.capabilities.iter().map(|one| one.key.as_str()).collect();
+    for name in manifest.capability_names() {
+        assert!(
+            capabilities.contains(name),
+            "the manifest names the capability '{name}', which no template declares"
+        );
     }
 }
