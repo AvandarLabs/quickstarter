@@ -30,8 +30,24 @@ pub type Tokens = BTreeMap<String, String>;
 /// Replaces every `{{KEY}}` occurrence in `text` with its value. Tokens with
 /// no matching entry are left in place, which surfaces authoring mistakes
 /// instead of silently deleting content.
+///
+/// A line holding nothing but one token (leading and trailing whitespace
+/// allowed) whose value is empty is removed entirely, newline included. That
+/// is what lets a shared file carry a **seam**: a line a capability fills in
+/// and a project without that capability never sees. Substituting an empty
+/// value in place would leave a blank line instead, which `cargo fmt --check`
+/// reports as a diff in the generated project. A token that shares its line
+/// with anything else is substituted where it stands, empty or not.
 pub fn substitute(text: &str, tokens: &Tokens) -> String {
-    let mut result = text.to_string();
+    text.split_inclusive('\n')
+        .filter(|line| !is_emptied_seam(line, tokens))
+        .map(|line| substitute_in_line(line, tokens))
+        .collect()
+}
+
+/// Replaces every `{{KEY}}` occurrence in one line, leaving the rest alone.
+fn substitute_in_line(line: &str, tokens: &Tokens) -> String {
+    let mut result = line.to_string();
     for (key, value) in tokens {
         let placeholder = format!("{{{{{key}}}}}");
         if result.contains(&placeholder) {
@@ -39,6 +55,17 @@ pub fn substitute(text: &str, tokens: &Tokens) -> String {
         }
     }
     result
+}
+
+/// Whether `line` is a seam that the chosen tags left empty: nothing but a
+/// single token, whose value is the empty string. A token no tag defines is
+/// not one, so an authoring mistake stays visible rather than deleting a line.
+fn is_emptied_seam(line: &str, tokens: &Tokens) -> bool {
+    let trimmed = line.trim();
+    let Some(name) = trimmed.strip_prefix("{{").and_then(|rest| rest.strip_suffix("}}")) else {
+        return false;
+    };
+    tokens.get(name).is_some_and(|value| value.is_empty())
 }
 
 /// Walks `root` and substitutes tokens in every text file in place.
@@ -213,5 +240,67 @@ mod tests {
         let tokens = tokens_from(&[("SUMMARY", "line one\nline two")]);
         let output = substitute("{{SUMMARY}}", &tokens);
         assert_eq!(output, "line one\nline two");
+    }
+
+    #[test]
+    fn a_line_holding_nothing_but_an_empty_token_is_removed_entirely() {
+        // A seam a project adds nothing to must leave no blank line behind:
+        // `cargo fmt --check` is part of the generated project's own `just
+        // check`, and a stray blank line fails it.
+        let tokens = tokens_from(&[("EXTRA_MODULES", "")]);
+
+        let output = substitute("pub mod cli;\n{{EXTRA_MODULES}}\npub mod theme;\n", &tokens);
+
+        assert_eq!(output, "pub mod cli;\npub mod theme;\n");
+    }
+
+    #[test]
+    fn an_indented_line_holding_nothing_but_an_empty_token_is_removed_too() {
+        let tokens = tokens_from(&[("EXTRA_DISPATCH", "")]);
+
+        let output =
+            substitute("match command {\n        {{EXTRA_DISPATCH}}\n    }\n", &tokens);
+
+        assert_eq!(output, "match command {\n    }\n");
+    }
+
+    #[test]
+    fn a_line_holding_nothing_but_a_filled_token_substitutes_as_it_always_did() {
+        // Including a multi-line value: the indentation is the line's, so only
+        // the first line of the value inherits it, exactly as before.
+        let tokens = tokens_from(&[("EXTRA_SUBCOMMANDS", "/// Open the terminal UI.\nUi,")]);
+
+        let output = substitute("enum Command {\n    {{EXTRA_SUBCOMMANDS}}\n}\n", &tokens);
+
+        assert_eq!(output, "enum Command {\n    /// Open the terminal UI.\nUi,\n}\n");
+    }
+
+    #[test]
+    fn an_empty_token_sharing_its_line_with_other_text_keeps_the_old_behavior() {
+        let tokens = tokens_from(&[("EXTRA_RULES", "")]);
+
+        let output = substitute("- rules {{EXTRA_RULES}}\n", &tokens);
+
+        assert_eq!(output, "- rules \n");
+    }
+
+    #[test]
+    fn an_empty_token_on_its_own_line_is_removed_even_without_a_trailing_newline() {
+        let tokens = tokens_from(&[("EXTRA_RULES", "")]);
+
+        let output = substitute("- rules\n{{EXTRA_RULES}}", &tokens);
+
+        assert_eq!(output, "- rules\n");
+    }
+
+    #[test]
+    fn a_line_holding_only_a_token_nothing_defines_is_left_in_place() {
+        // An unfilled token is an authoring mistake, and the composed project
+        // has to show it rather than quietly losing the line.
+        let tokens = tokens_from(&[("KNOWN", "")]);
+
+        let output = substitute("a\n{{UNKNOWN}}\nb\n", &tokens);
+
+        assert_eq!(output, "a\n{{UNKNOWN}}\nb\n");
     }
 }

@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use quickstarter::catalog::{self, Catalog, Selection};
+use quickstarter::catalog::{self, Catalog, Selection, compatibility};
 use quickstarter::compose::{self, ComposePlan};
 use quickstarter::skills::commands;
 use quickstarter::skills::install;
@@ -165,6 +165,25 @@ fn the_rust_project_type_composes_cleanly_and_without_a_package_json() {
     assert!(manifest.contains("name = \"demo-app\""), "{manifest}");
 
     assert_no_unfilled_tokens(&dest);
+}
+
+#[test]
+fn every_capability_composes_cleanly_with_every_project_type_it_fits() {
+    // The tests above name one combination each. This one is data-driven, so a
+    // capability added to `templates/` is composed here the day it lands: its
+    // manifest fragment has to be the kind its project type merges, and every
+    // token it leaves behind has to have a value.
+    let catalog = catalog();
+    for project_type in &catalog.project_types {
+        for capability in compatibility::compatible(&catalog.capabilities, project_type) {
+            let temp = tempfile::tempdir().unwrap();
+            let dest = temp.path().join("app");
+
+            compose_project(&project_type.key, &[&capability.key], &dest);
+
+            assert_no_unfilled_tokens(&dest);
+        }
+    }
 }
 
 #[test]

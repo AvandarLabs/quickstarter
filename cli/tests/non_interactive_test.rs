@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use fixture_templates::{
-    ROUTER_CAPABILITY, RUST_PROJECT_TYPE, START_CAPABILITY, WEB_PROJECT_TYPE,
+    ROUTER_CAPABILITY, RUST_PROJECT_TYPE, START_CAPABILITY, TUI_CAPABILITY, WEB_PROJECT_TYPE,
 };
 
 /// A temp directory holding the cloneable template fixture and the target dir.
@@ -149,10 +149,39 @@ fn a_project_type_with_no_package_json_scaffolds_without_one() {
     assert!(!project.join("package.json").exists());
     assert!(project.join(".git").exists());
 
+    // Nothing filled the seam, so the line it was on is gone: a blank line
+    // there is a `cargo fmt --check` diff in the project the user just got.
+    assert_eq!(
+        std::fs::read_to_string(project.join("src/lib.rs")).unwrap(),
+        "pub mod cli;\npub mod theme;\n"
+    );
+
     let report = stdout(&output);
     assert!(report.contains("Rust CLI"), "{report}");
     assert!(report.contains("cargo run"), "{report}");
     assert!(!report.contains("pnpm"), "{report}");
+}
+
+#[test]
+fn a_capability_of_a_cargo_project_merges_its_manifest_fragment() {
+    let sandbox = sandbox();
+    let output = build(&sandbox, RUST_PROJECT_TYPE, &[TUI_CAPABILITY]);
+    assert!(output.status.success(), "{}", stderr(&output));
+
+    let project: &Path = &sandbox.target_dir.join("My App");
+    let manifest = std::fs::read_to_string(project.join("Cargo.toml")).unwrap();
+
+    // Both layers' dependencies, and the comment each carries saying why it is
+    // there, survive the merge all the way to the finished project.
+    assert!(manifest.contains("name = \"my-app\""), "{manifest}");
+    assert!(manifest.contains("# Error handling with context.\nanyhow = \"1\""), "{manifest}");
+    assert!(manifest.contains("# Terminal UI rendering.\nratatui = \"0.29\""), "{manifest}");
+
+    assert_eq!(
+        std::fs::read_to_string(project.join("src/lib.rs")).unwrap(),
+        "pub mod cli;\npub mod tui;\npub mod theme;\n"
+    );
+    assert!(project.join("src/tui.rs").is_file());
 }
 
 #[test]

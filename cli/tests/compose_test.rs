@@ -87,26 +87,78 @@ fn composes_base_plus_project_type_plus_capability_with_merge_and_tokens() {
 }
 
 #[test]
-fn a_project_type_without_a_package_json_composes_without_one() {
+fn a_project_type_whose_manifest_is_a_cargo_toml_composes_without_a_package_json() {
     let fixture = fixture();
     let dest = fixture.template_root.join("../out/rust-app");
     compose_into(&fixture, fixture_templates::RUST_PROJECT_TYPE, &[], &dest);
 
     // Its own files arrived, tokens and all, and the base layer came with them.
-    assert_eq!(
-        std::fs::read_to_string(dest.join("Cargo.toml")).unwrap(),
-        "[package]\nname = \"my-app\"\n"
-    );
+    let manifest = std::fs::read_to_string(dest.join("Cargo.toml")).unwrap();
+    assert!(manifest.contains("name = \"my-app\""), "{manifest}");
+    assert!(manifest.contains("# Error handling with context.\nanyhow = \"1\""), "{manifest}");
     assert!(dest.join("src/main.rs").is_file());
     assert_eq!(
         std::fs::read_to_string(dest.join("README.md")).unwrap(),
         "# My App\nRust CLI"
     );
 
-    // The merge is skipped entirely rather than producing an empty manifest.
+    // No capability filled the seam, so its line is gone rather than blank.
+    assert_eq!(
+        std::fs::read_to_string(dest.join("src/lib.rs")).unwrap(),
+        "pub mod cli;\npub mod theme;\n"
+    );
+
+    // The JSON merge is skipped entirely rather than producing an empty
+    // manifest, and nothing from the other project type leaked in.
     assert!(!dest.join("package.json").exists());
-    // And nothing from the other project type leaked in.
     assert!(!dest.join("vite.config.ts").exists());
+}
+
+#[test]
+fn a_capability_merges_its_cargo_toml_fragment_and_fills_the_seam_it_owns() {
+    let fixture = fixture();
+    let dest = fixture.template_root.join("../out/tui-app");
+    compose_into(
+        &fixture,
+        fixture_templates::RUST_PROJECT_TYPE,
+        &[fixture_templates::TUI_CAPABILITY],
+        &dest,
+    );
+
+    // The fragment's dependency arrived with the comment saying why it is
+    // there, and the project type's own dependencies and comments survived.
+    let manifest = std::fs::read_to_string(dest.join("Cargo.toml")).unwrap();
+    assert!(manifest.contains("name = \"my-app\""), "{manifest}");
+    assert!(manifest.contains("# Error handling with context.\nanyhow = \"1\""), "{manifest}");
+    assert!(manifest.contains("# Terminal UI rendering.\nratatui = \"0.29\""), "{manifest}");
+
+    // The seam is filled in place rather than removed, and the capability's
+    // own file came with it.
+    assert_eq!(
+        std::fs::read_to_string(dest.join("src/lib.rs")).unwrap(),
+        "pub mod cli;\npub mod tui;\npub mod theme;\n"
+    );
+    assert!(dest.join("src/tui.rs").is_file());
+}
+
+#[test]
+fn composing_the_same_project_twice_produces_the_same_manifest_bytes() {
+    let fixture = fixture();
+    let first = fixture.template_root.join("../out/first");
+    let second = fixture.template_root.join("../out/second");
+    for dest in [&first, &second] {
+        compose_into(
+            &fixture,
+            fixture_templates::RUST_PROJECT_TYPE,
+            &[fixture_templates::TUI_CAPABILITY],
+            dest,
+        );
+    }
+
+    assert_eq!(
+        std::fs::read_to_string(first.join("Cargo.toml")).unwrap(),
+        std::fs::read_to_string(second.join("Cargo.toml")).unwrap()
+    );
 }
 
 #[test]

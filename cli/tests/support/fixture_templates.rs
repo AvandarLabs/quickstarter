@@ -2,9 +2,10 @@
 //!
 //! Sharing one fixture between the composition test and the end-to-end CLI
 //! test keeps them describing the same template layout. It exercises the tag
-//! model rather than mirroring the real templates: two project types, one with
-//! a `package.json` and one without, and two capabilities that fit only the
-//! first and exclude each other.
+//! model rather than mirroring the real templates: two project types, one
+//! merging a `package.json` and one a `Cargo.toml`, two capabilities that fit
+//! only the first and exclude each other, and one that fits only the second
+//! and contributes both a manifest fragment and a seam token.
 //!
 //! The fixture deliberately ships no `skills-manifest.json`: a template
 //! repository that declares no skills installs none, which is what lets the
@@ -12,11 +13,10 @@
 
 use std::path::{Path, PathBuf};
 
-/// The project type with a `package.json`, and the only one the capabilities
-/// fit.
+/// The project type whose manifest is a `package.json`.
 pub const WEB_PROJECT_TYPE: &str = "typescript:web";
 
-/// The project type without a `package.json`.
+/// The project type whose manifest is a `Cargo.toml`.
 pub const RUST_PROJECT_TYPE: &str = "rust:cli";
 
 /// One of the two capabilities that exclude each other.
@@ -25,6 +25,10 @@ pub const ROUTER_CAPABILITY: &str = "tanstack-router";
 /// The other one.
 pub const START_CAPABILITY: &str = "tanstack-start";
 
+/// The capability of the Rust project type: a `Cargo.toml` fragment and a
+/// seam token, and nothing that conflicts with anything.
+pub const TUI_CAPABILITY: &str = "rust-tui";
+
 /// Writes the whole template repository under `root`.
 pub fn write(root: &Path) {
     write_base(root);
@@ -32,6 +36,7 @@ pub fn write(root: &Path) {
     write_rust_project_type(root);
     write_router_capability(root);
     write_start_capability(root);
+    write_tui_capability(root);
 }
 
 /// The layer every project type shares, tokens and all.
@@ -62,17 +67,27 @@ fn write_web_project_type(root: &Path) {
     write_file(&dir.join("files/vite.config.ts"), "// web vite");
 }
 
-/// A project type whose language has no `package.json` at all.
+/// A project type whose manifest is a `Cargo.toml` rather than a
+/// `package.json`, with a seam its capability fills in and every project
+/// without that capability never sees.
 fn write_rust_project_type(root: &Path) {
     let dir = project_type_dir(root, "rust-cli");
     write_file(
         &dir.join("project-type.json"),
         r#"{ "key": "rust:cli", "name": "Rust CLI",
              "description": "A command-line tool", "language": "rust", "order": 2,
-             "tokens": { "STACK_LINE": "Rust CLI", "NEXT_STEPS": "cargo run" } }"#,
+             "tokens": { "STACK_LINE": "Rust CLI", "NEXT_STEPS": "cargo run",
+                         "EXTRA_MODULES": "" } }"#,
     );
-    write_file(&dir.join("files/Cargo.toml"), "[package]\nname = \"{{PACKAGE_NAME}}\"\n");
+    // The merge base sits at the layer root, beside `project-type.json`, the
+    // way the web project type's `package.json` does.
+    write_file(
+        &dir.join("Cargo.toml"),
+        "[package]\nname = \"{{PACKAGE_NAME}}\"\n\n[dependencies]\n\
+         # Error handling with context.\nanyhow = \"1\"\n",
+    );
     write_file(&dir.join("files/src/main.rs"), "fn main() {}");
+    write_file(&dir.join("files/src/lib.rs"), "pub mod cli;\n{{EXTRA_MODULES}}\npub mod theme;\n");
 }
 
 /// A capability that fits only the web project type and excludes the other.
@@ -108,6 +123,24 @@ fn write_start_capability(root: &Path) {
         r#"{ "dependencies": { "@tanstack/react-start": "^1.0.0" } }"#,
     );
     write_file(&dir.join("files/src/router.tsx"), "// start router");
+}
+
+/// A capability of the Rust project type: a `Cargo.toml` fragment, a file, and
+/// the seam token the project type leaves empty.
+fn write_tui_capability(root: &Path) {
+    let dir = capability_dir(root, "rust-tui");
+    write_file(
+        &dir.join("capability.json"),
+        r#"{ "key": "rust-tui", "name": "Terminal UI",
+             "description": "A ratatui terminal UI", "order": 3,
+             "projectTypes": ["rust:cli"],
+             "tokens": { "EXTRA_MODULES": "pub mod tui;" } }"#,
+    );
+    write_file(
+        &dir.join("Cargo.toml"),
+        "[dependencies]\n# Terminal UI rendering.\nratatui = \"0.29\"\n",
+    );
+    write_file(&dir.join("files/src/tui.rs"), "// tui");
 }
 
 fn project_type_dir(root: &Path, slug: &str) -> PathBuf {

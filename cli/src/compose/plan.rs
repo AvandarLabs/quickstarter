@@ -19,8 +19,43 @@ pub const BASE_DIR_NAME: &str = "base";
 /// The directory inside a layer whose contents are overlaid into the project.
 pub const FILES_DIR_NAME: &str = "files";
 
-/// The manifest a layer contributes to the merge.
+/// The manifest a JavaScript layer contributes to the merge.
 pub const PACKAGE_JSON_FILE_NAME: &str = "package.json";
+
+/// The manifest a Rust layer contributes to the merge.
+pub const CARGO_TOML_FILE_NAME: &str = "Cargo.toml";
+
+/// The dependency manifest a project type builds its project from, and so the
+/// merge composition runs.
+///
+/// It is detected from what the project type's layer ships rather than
+/// declared, which is what lets a project type opt into a merge simply by
+/// putting its language's manifest at the root of its layer. A project type
+/// that ships neither composes with no manifest at all, because a language
+/// without one must not be handed an empty file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManifestKind {
+    /// `package.json`, deep-merged as JSON by
+    /// [`crate::compose::package_json`].
+    PackageJson,
+    /// `Cargo.toml`, merged as TOML by [`crate::compose::cargo_toml`], which
+    /// keeps the comment above every dependency.
+    CargoToml,
+}
+
+impl ManifestKind {
+    /// Every kind there is, in the order a layer is searched for one.
+    pub const ALL: [ManifestKind; 2] = [ManifestKind::PackageJson, ManifestKind::CargoToml];
+
+    /// The file a layer ships to take part in this merge. The names live here,
+    /// with the rest of the layout, rather than in the merges themselves.
+    pub fn file_name(self) -> &'static str {
+        match self {
+            ManifestKind::PackageJson => PACKAGE_JSON_FILE_NAME,
+            ManifestKind::CargoToml => CARGO_TOML_FILE_NAME,
+        }
+    }
+}
 
 /// Inputs describing what to build and from where.
 pub struct ComposePlan<'plan> {
@@ -71,18 +106,44 @@ impl ComposePlan<'_> {
         layers
     }
 
-    /// The project type's `package.json`, which is the merge base. A project
-    /// type whose language has no such manifest (a Rust one) ships no file
-    /// here, and the project is composed without one.
-    pub fn package_json_base(&self) -> PathBuf {
-        self.project_type_dir().join(PACKAGE_JSON_FILE_NAME)
+    /// The manifest the chosen project type ships, or `None` when its language
+    /// has none and the project is composed without one.
+    pub fn manifest_kind(&self) -> Option<ManifestKind> {
+        let dir = self.project_type_dir();
+        ManifestKind::ALL
+            .into_iter()
+            .find(|kind| dir.join(kind.file_name()).is_file())
     }
 
-    /// The `package.json` fragments to merge onto the base, in order.
-    pub fn package_json_fragments(&self) -> Vec<PathBuf> {
-        self.capability_dirs()
-            .map(|dir| dir.join(PACKAGE_JSON_FILE_NAME))
-            .collect()
+    /// The project type's manifest of `kind`, which is the merge base.
+    pub fn manifest_base(&self, kind: ManifestKind) -> PathBuf {
+        self.project_type_dir().join(kind.file_name())
+    }
+
+    /// The fragments of `kind` to merge onto the base, in order. A capability
+    /// that ships none contributes nothing, so the path need not exist.
+    pub fn manifest_fragments(&self, kind: ManifestKind) -> Vec<PathBuf> {
+        self.capability_dirs().map(|dir| dir.join(kind.file_name())).collect()
+    }
+
+    /// Every manifest a chosen capability ships that a project expecting
+    /// `expected` cannot merge, as (capability key, path).
+    ///
+    /// A `Cargo.toml` fragment on a `package.json` project (or any fragment at
+    /// all when the project type ships no manifest) is an authoring mistake
+    /// whose only symptom would be a dependency quietly missing from the
+    /// generated project, so composition refuses it instead.
+    pub fn foreign_manifests(&self, expected: Option<ManifestKind>) -> Vec<(&str, PathBuf)> {
+        let mut foreign = Vec::new();
+        for (capability, dir) in self.capabilities.iter().zip(self.capability_dirs()) {
+            for kind in ManifestKind::ALL {
+                let path = dir.join(kind.file_name());
+                if Some(kind) != expected && path.is_file() {
+                    foreign.push((capability.key.as_str(), path));
+                }
+            }
+        }
+        foreign
     }
 
     /// The token map: the project type's tokens, then each capability's (so a
@@ -165,16 +226,149 @@ mod tests {
         let plan = plan(&project_type, &capabilities, Tokens::new());
 
         assert_eq!(
-            plan.package_json_base().display().to_string(),
+            plan.manifest_base(ManifestKind::PackageJson).display().to_string(),
             "/template/templates/project-types/typescript-web/package.json"
         );
         assert_eq!(
-            plan.package_json_fragments()
+            plan.manifest_fragments(ManifestKind::PackageJson)
                 .iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<String>>(),
             vec!["/template/templates/capabilities/tanstack-router/package.json"]
         );
+    }
+
+    #[test]
+    fn a_cargo_manifest_has_the_same_shape_as_a_package_one() {
+        let project_type = test_tags::project_type("rust:cli", "rust");
+        let tui = test_tags::capability("rust-tui");
+        let capabilities = vec![&tui];
+        let plan = plan(&project_type, &capabilities, Tokens::new());
+
+        assert_eq!(
+            plan.manifest_base(ManifestKind::CargoToml).display().to_string(),
+            "/template/templates/project-types/rust-cli/Cargo.toml"
+        );
+        assert_eq!(
+            plan.manifest_fragments(ManifestKind::CargoToml)
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<String>>(),
+            vec!["/template/templates/capabilities/rust-tui/Cargo.toml"]
+        );
+    }
+
+    /// A template repository on disk, because which merge runs is read from
+    /// what a layer actually ships.
+    struct Layers {
+        temp: tempfile::TempDir,
+    }
+
+    impl Layers {
+        fn new() -> Layers {
+            Layers { temp: tempfile::tempdir().unwrap() }
+        }
+
+        /// Puts `file` at the root of a layer's directory.
+        fn ship(&self, dir: &str, slug: &str, file: &str) -> &Layers {
+            let layer = self.temp.path().join("templates").join(dir).join(slug);
+            std::fs::create_dir_all(&layer).unwrap();
+            std::fs::write(layer.join(file), "").unwrap();
+            self
+        }
+    }
+
+    fn rooted_plan<'plan>(
+        root: &'plan Path,
+        project_type: &'plan ProjectType,
+        capabilities: &'plan [&'plan Capability],
+    ) -> ComposePlan<'plan> {
+        ComposePlan {
+            template_root: root,
+            project_type,
+            capabilities,
+            project_name: "My App",
+            package_name: "my-app",
+            extra_tokens: Tokens::new(),
+        }
+    }
+
+    #[test]
+    fn a_project_type_shipping_a_package_json_merges_json() {
+        let layers = Layers::new();
+        layers.ship("project-types", "typescript-web", "package.json");
+        let project_type = test_tags::project_type("typescript:web", "typescript");
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &[]);
+
+        assert_eq!(plan.manifest_kind(), Some(ManifestKind::PackageJson));
+    }
+
+    #[test]
+    fn a_project_type_shipping_a_cargo_toml_merges_toml() {
+        let layers = Layers::new();
+        layers.ship("project-types", "rust-cli", "Cargo.toml");
+        let project_type = test_tags::project_type("rust:cli", "rust");
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &[]);
+
+        assert_eq!(plan.manifest_kind(), Some(ManifestKind::CargoToml));
+    }
+
+    #[test]
+    fn a_project_type_shipping_neither_merges_nothing() {
+        let layers = Layers::new();
+        layers.ship("project-types", "rust-cli", "project-type.json");
+        let project_type = test_tags::project_type("rust:cli", "rust");
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &[]);
+
+        assert_eq!(plan.manifest_kind(), None);
+    }
+
+    #[test]
+    fn a_capability_fragment_of_another_kind_is_reported_as_foreign() {
+        let layers = Layers::new();
+        layers.ship("project-types", "rust-cli", "Cargo.toml");
+        layers.ship("capabilities", "prettier", "package.json");
+        let project_type = test_tags::project_type("rust:cli", "rust");
+        let prettier = test_tags::capability("prettier");
+        let capabilities = vec![&prettier];
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &capabilities);
+        let foreign = plan.foreign_manifests(Some(ManifestKind::CargoToml));
+
+        assert_eq!(foreign.len(), 1, "{foreign:?}");
+        assert_eq!(foreign[0].0, "prettier");
+        assert!(foreign[0].1.ends_with("prettier/package.json"), "{foreign:?}");
+    }
+
+    #[test]
+    fn a_capability_fragment_of_the_projects_own_kind_is_not_foreign() {
+        let layers = Layers::new();
+        layers.ship("project-types", "rust-cli", "Cargo.toml");
+        layers.ship("capabilities", "rust-tui", "Cargo.toml");
+        let project_type = test_tags::project_type("rust:cli", "rust");
+        let tui = test_tags::capability("rust-tui");
+        let capabilities = vec![&tui];
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &capabilities);
+
+        assert!(plan.foreign_manifests(Some(ManifestKind::CargoToml)).is_empty());
+    }
+
+    #[test]
+    fn every_fragment_is_foreign_to_a_project_type_with_no_manifest_at_all() {
+        let layers = Layers::new();
+        layers.ship("project-types", "rust-cli", "project-type.json");
+        layers.ship("capabilities", "rust-tui", "Cargo.toml");
+        let project_type = test_tags::project_type("rust:cli", "rust");
+        let tui = test_tags::capability("rust-tui");
+        let capabilities = vec![&tui];
+
+        let plan = rooted_plan(layers.temp.path(), &project_type, &capabilities);
+
+        assert_eq!(plan.foreign_manifests(None).len(), 1);
     }
 
     #[test]

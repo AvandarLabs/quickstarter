@@ -74,6 +74,10 @@
   },
   "capabilities": {
     "tanstack-router": [],
-    "tanstack-start": []
+    "tanstack-start": [],
+    "rust-tui": [
+      "blacktop/dotfiles/ai/skills/ratatui-tui",
+      "hyperb1iss/hyperskills/skills/tui-design"
+    ]
   }
 }

@@ -111,6 +111,7 @@ When in doubt, write the test.
 The rules for this project's language and frameworks live in `docs/rules/`:
 
 {{PROJECT_TYPE_RULES}}
+{{EXTRA_RULES}}
 
 ## Agent skills
 

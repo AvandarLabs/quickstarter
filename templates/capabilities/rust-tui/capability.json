@@ -1,0 +1,16 @@
+{
+  "key": "rust-tui",
+  "name": "Terminal UI (ratatui)",
+  "description": "A ratatui terminal UI: a command palette, a shortcuts modal, and the pure keymap behind them.",
+  "order": 1,
+  "projectTypes": [
+    "rust:cli"
+  ],
+  "conflictsWith": [],
+  "tokens": {
+    "EXTRA_MODULES": "pub mod tui;",
+    "EXTRA_SUBCOMMANDS": "/// Open the terminal UI.\n    Ui,",
+    "EXTRA_DISPATCH": "Command::Ui => crate::tui::run(theme),",
+    "EXTRA_RULES": "- [`docs/rules/tui.md`](docs/rules/tui.md): how the terminal UI is built. The\n  command palette is the parent set of every command, rendering is a pure\n  function of the state, and the terminal is restored even on a panic."
+  }
+}

@@ -14,24 +14,40 @@ behavior.
 A generated repo carries **tags** of two types: exactly one **project type**
 (`typescript:web`, `rust:cli`), which decides the build system, the starting
 files, and the language's skills, plus any number of **capabilities**
-(`tanstack-router`, `tanstack-start`) layered on top. Which combinations are
-legal is declared by the tags themselves (`projectTypes`, `languages`,
-`conflictsWith`) and read by `cli/src/catalog/`, never hardcoded. Capabilities
-that exclude one another form a choice group, and a group that fits the chosen
-project type is a required choice.
+(`tanstack-router`, `tanstack-start`, `rust-tui`) layered on top. Which
+combinations are legal is declared by the tags themselves (`projectTypes`,
+`languages`, `conflictsWith`) and read by `cli/src/catalog/`, never hardcoded.
+Capabilities that exclude one another form a choice group, and a group that
+fits the chosen project type is a required choice; one that excludes nothing is
+an optional extra (`rust-tui` on `rust:cli`).
 
-A project is composed with three techniques:
+A project is composed with four techniques:
 
 - **Overlay** (`cli/src/compose/overlay.rs`): copy `base/files`, then the
   project type's `files`, then each chosen capability's `files`. Later layers
   win, so a capability owns a whole file (its `vite.config.ts`) that its
   project type also ships.
-- **Deep-merge** (`cli/src/compose/package_json.rs`): the project type's
-  `package.json` plus each capability's fragment. A project type with no
-  `package.json` (the Rust one) composes without one rather than failing.
+- **Manifest merge** (`cli/src/compose/package_json.rs`,
+  `cli/src/compose/cargo_toml.rs`): the project type's dependency manifest plus
+  each capability's fragment. Which merge runs is the `ManifestKind` detected
+  from the manifest at the project type's layer root (`package.json` or
+  `Cargo.toml`); a project type that ships neither composes without one rather
+  than failing, and a capability fragment of the other kind is refused by name
+  rather than skipped. The TOML merge is `toml_edit`, because a
+  parse-and-reserialize would delete the comment above every dependency. A
+  token in a manifest has to sit inside a value (`name = "{{PACKAGE_NAME}}"`):
+  the manifest is parsed before substitution runs.
 - **Token substitution** (`cli/src/compose/tokens.rs`): `{{TOKEN}}`s for files
   that are mostly shared but carry a few tag-specific lines. Every UTF-8 text
   file is processed, extensionless ones (`.gitignore`, `justfile`) included.
+- **Seams** (the part of substitution that lets a capability add code): a line
+  holding nothing but a token, declared empty by the project type that owns the
+  file and filled by a capability that needs the line. Today `EXTRA_MODULES`,
+  `EXTRA_SUBCOMMANDS` and `EXTRA_DISPATCH` in the `rust:cli` source, and
+  `EXTRA_RULES` in the base `AGENTS.md`, which every project type declares. A
+  seam line whose value is empty is deleted whole, newline included, so a
+  project that took no capability has no blank hole and still passes
+  `cargo fmt --check`.
 
 ## The CLI surface
 
@@ -56,6 +72,19 @@ free text.
 - A change specific to one library goes in `templates/capabilities/<slug>/`,
   along with the compatibility it declares (`projectTypes`, `languages`,
   `conflictsWith`). Declare a conflict on both sides.
+- A capability that adds a dependency ships a manifest fragment of the kind its
+  project types merge: `Cargo.toml` on `rust:cli`, `package.json` on
+  `typescript:web`. The other kind fails composition, so a fragment is never
+  silently dropped.
+- A capability that has to add a line to a file its project type owns fills a
+  **seam** token; it never overlays the file to get one line in. At most one
+  capability per project type may fill a given seam, because the token map is
+  flat and the second one would silently win:
+  `cli/tests/template_tokens_test.rs` fails the build on that pair.
+  Capabilities that exclude each other are exempt, since a project chooses
+  exactly one of them (both routers define `STACK_LINE`). A seam that does not
+  exist yet is a change to the project type: one more empty token in its
+  `project-type.json`, and the line that carries it.
 - Never duplicate a shared file into a project type or a capability just to
   tweak one line. Add a `{{TOKEN}}` in the shared file and give it a value in
   the `project-type.json` or `capability.json` of whichever tag knows the

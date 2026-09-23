@@ -12,6 +12,7 @@
     "SKILLS_INSTALL_COMMAND": "pnpm skills:install",
     "SKILLS_UPDATE_COMMAND": "pnpm skills:update",
     "SKILLS_RESTORE_NOTE": "A fresh clone needs nothing extra: `pnpm install` restores the locked skills.",
-    "NEXT_STEPS": "pnpm install\npnpm dev        # then open the dev server it prints"
+    "NEXT_STEPS": "pnpm install\npnpm dev        # then open the dev server it prints",
+    "EXTRA_RULES": ""
   }
 }

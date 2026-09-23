@@ -3,7 +3,7 @@ name = "{{PACKAGE_NAME}}"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "{{PROJECT_NAME}}: a command-line tool with a terminal UI."
+description = "{{PROJECT_NAME}}: a command-line tool."
 license = "MIT"
 
 # The library half holds everything worth testing; the binary is a thin shell
@@ -24,12 +24,13 @@ anyhow = "1"
 # The command-line surface. `derive` keeps the flags next to the types they
 # fill; `env` lets any flag also come from the environment.
 clap = { version = "4", features = ["derive", "env"] }
-# Terminal control (raw mode, the alternate screen, key events) under ratatui.
-# Pinned to the version ratatui builds against so the key types are the same.
-crossterm = "0.28"
-# The terminal UI. Immediate-mode rendering keeps the drawing code a pure
-# function of the state it is handed.
-ratatui = "0.29"
+# The configuration struct is (de)serialized rather than parsed by hand, so a
+# new setting is one more field. `derive` is the whole reason it is here.
+serde = { version = "1", features = ["derive"] }
+# The configuration file format: a config a person edits by hand should look
+# like one. `preserve_order` keeps a table in the order it was read instead of
+# sorting it, so rewriting the file does not reshuffle what the user wrote.
+toml = { version = "1", features = ["preserve_order"] }
 
 [lints.rust]
 unsafe_code = "forbid"

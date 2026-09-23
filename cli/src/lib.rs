@@ -17,9 +17,12 @@
 //!
 //! The three composition techniques live under [`compose`]:
 //! - whole-file overlay for code that genuinely differs per tag,
-//! - deep-merge for `package.json` dependency fragments,
+//! - deep-merge for dependency-manifest fragments, `package.json` or
+//!   `Cargo.toml` depending on what the project type ships,
 //! - `{{TOKEN}}` substitution for files that are mostly shared but carry a
-//!   few tag-specific lines.
+//!   few tag-specific lines. A line holding nothing but a token that no tag
+//!   filled in disappears, so a capability can inject one without leaving a
+//!   blank line in the projects that skip it.
 //!
 //! The agent skills a project gets are not composed but installed: [`skills`]
 //! runs `npx skills` inside the finished project, for the tags it carries.

@@ -23,6 +23,15 @@ hand-aligned table where a machine expected a value.
   terminal (a pipe, a CI job, an agent), fail with a message that names the
   flag that would have answered the question.
 
+Both paths come from one place: `src/prompt.rs`. Describe the missing value as
+a `Question` (what it is, the flag that answers it, the choices if there is a
+fixed set) and call `prompt::ask`. A command that reads from stdin itself is a
+command that will eventually hang on a pipe.
+
+A value that a person would otherwise pass every day belongs in the
+configuration file as well, so the order is: the flag, then the configuration,
+then the question, then the failure that names the flag.
+
 Adding a command means providing both paths in the same change.
 
 ## Narrate by default, detail under `--verbose`

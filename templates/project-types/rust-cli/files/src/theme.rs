@@ -58,8 +58,8 @@ impl Tone {
     }
 
     /// The 4-bit palette index for this tone, for callers that need a color
-    /// value rather than an escape sequence (the terminal UI renders with
-    /// these). Always in the bright half, `8..=15`.
+    /// value rather than an escape sequence (a renderer that paints with color
+    /// values takes these). Always in the bright half, `8..=15`.
     #[must_use]
     pub const fn ansi_index(self) -> u8 {
         match self {
